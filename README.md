@@ -1,5 +1,5 @@
 # Neuronal ficticous self-play
->  NFSP angewendetn auf Leduc-poker von David Joos <
+>  NFSP angewendetn auf Leduc-poker von David Joos
 
 ## Struktur
 ### Idee
