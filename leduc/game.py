@@ -7,6 +7,10 @@ class Game:
     """Game interface which handles rules, process and players"""
 
     def __init__(self, player1 = None, player2 = None):
+        self._players_state = [False, False, False, False]
+        self._game_state = 0
+        self._public_card = []
+        self._pot = [0, 0]
         self._player1 = player1
         self._player2 = player2
         self._deck = deck.Deck() # Parserparameter pass to function -> size of deck
@@ -17,12 +21,8 @@ class Game:
         self._deck.shuffle()
         self._player1.set_private_card(self._deck.pick_up())
         self._player2.set_private_card(self._deck.pick_up())
-        self._public_card = []
-        self._game_state = 0
         # indice 0 -> player 1; indice 1 -> player 2
-        self._pot = [0, 0]
-        self._players_state = [False, False, False, False]
-    
+
     def play_game(self):
         """Plays exactly one round -> full game."""
         logging.debug("="*45)
