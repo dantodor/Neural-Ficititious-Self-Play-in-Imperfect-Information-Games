@@ -1,5 +1,4 @@
 from __future__ import print_function
-import sys, logging
 
 class Player:
     def __init__(self):
