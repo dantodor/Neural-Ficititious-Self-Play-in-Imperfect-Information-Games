@@ -1,6 +1,33 @@
 # Neuronal ficticous self-play
 >  NFSP angewendetn auf Leduc-poker von David Joos
 
+## Environment
+
+It simulates a leduc poker environment. The main class is `env.py` and loads the classes `deck.py`and
+`card.py`.
+The whole environment is found uner `leduc/`.
+
+### Usage
+```python
+import leduc.env as leduc
+
+env = leduc.Env()
+
+# Before you take actions:
+env.reset()
+
+# To get initial state without an action for player with index 0
+s, r, t, i = env.init_state(0)
+
+# To take action in leduc poker you need:
+# your action -> array with shape: [x, y, z] where x = fold, y = call, z = raise
+# player index -> for example 0
+s, r, t, i = env.step(action, 0)
+
+# If game terminates:
+env.reset()
+```
+
 ## Struktur
 ### Idee
 Das Programm wird in drei Module gesplitted:

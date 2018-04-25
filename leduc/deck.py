@@ -1,7 +1,5 @@
 from __future__ import print_function
-import sys, logging
-from random import shuffle as rshuffle, randint
-import numpy as np
+from random import shuffle as rshuffle
 import cardmatrix as cm
 
 class Card:
@@ -21,7 +19,7 @@ class Card:
     def _print_human_style(self):
         print(str(self._named_suit + ' ' + self._named_rank))
 
-    @property 
+    # @property
     def rank(self):
         return self._rank
     
@@ -31,10 +29,11 @@ class Deck:
         assert size > 0 and size % 2 == 0, 'Decksize has to be an even number which is greater than 0.'
         self._size = size
         self._fill()
+        self.fake_pub = Card(0, 0)
 
     def _fill(self):
         """Fill the deck with unshuffeled amount of cards => size."""
-        cards_per_suit = self._size / 2 # suits are anyway not necessary for this game.
+        cards_per_suit = self._size / 2  # suits are anyway not necessary for this game.
         self._cards = [Card(rank, suit)
                 for rank in range(cards_per_suit)
                 for suit in range(2)]
@@ -42,6 +41,9 @@ class Deck:
     def shuffle(self):
         """Shuffle deck"""
         rshuffle(self._cards)
+
+    def fake_pub_card(self):
+        return self.fake_pub
 
     def pick_up(self):
         return self._cards.pop()
