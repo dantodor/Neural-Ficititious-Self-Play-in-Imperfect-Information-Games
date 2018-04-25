@@ -2,6 +2,7 @@ from __future__ import print_function
 import logging
 import deck
 
+
 class Game:
     """Game interface which handles rules, process and players"""
 

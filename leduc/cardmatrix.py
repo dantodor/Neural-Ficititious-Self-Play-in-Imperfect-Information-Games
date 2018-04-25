@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Cardmatrix:
     """Matrix with all possible cardranks and suits from a 52 standard card deck"""
 
