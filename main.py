@@ -1,6 +1,6 @@
 import sys, logging
 import tensorflow as tf
-import leduc.game as game
+import leduc.env as game
 import leduc.player as player
 import agent.agent as agent
 import numpy as np
