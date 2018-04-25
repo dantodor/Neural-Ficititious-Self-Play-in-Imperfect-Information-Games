@@ -6,7 +6,7 @@ import numpy as np
 from gym import spaces
 import argparse
 import ConfigParser
-import utils.replay_buffer as ReplayBuffer
+import random
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
@@ -14,23 +14,57 @@ logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 Config = ConfigParser.ConfigParser()
 Config.read("./config.ini")
 
-# ReplayBuffer
-replay_buffer = ReplayBuffer.ReplayBuffer(int(Config.get('Utils', 'Buffersize')), int(Config.get('Utils', 'Seed')))
+
+def train(sess, env, args, player1, player2):
+
+    # initialize tensorflow variables
+    sess.run(tf.global_variables_initializer())
+
+    for i in range(int(Config.get('Common', 'MaxEpisodes'))):
+
+        # choose a dealer randomly
+        dealer = random.randint(0, 1)
+
+        # reset env
+        env.reset()
+
+        # get initial state
+        p1_s = env.init_state(0)
+        p2_s = env.init_state(1)
+
+        if dealer == 0:  # player1 is dealer
+            # TODO: Fix return of env.step to -> p1_sOld, p1_a, r, p1_s, t, i
+            p1_a = player1.predict(p1_s)
+            p1_s, r, t, i = env.step(p1_a)
+
+            p2_a = player2.predict(p2_s)
+            p2_s, r, t, i = env.step(p2_a)
 
 
-def main():
-
-    env = leduc.Env()
-    np.random.seed(int(Config.get('Utils', 'Seed')))
-    tf.set_random_seed(int(Config.get('Utils', 'Seed')))
-
-    # initialize dimensions:
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0]
 
 
 
-def testfunc():
+def main(args):
+
+    with tf.Session() as sess:
+
+        env = leduc.Env()
+        np.random.seed(int(Config.get('Utils', 'Seed')))
+        tf.set_random_seed(int(Config.get('Utils', 'Seed')))
+
+        # initialize dimensions:
+        state_dim = env.observation_space
+        action_dim = env.action_space
+
+        # initialize players
+        player1 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
+        player2 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
+
+        train(sess, env, args, player1, player2)
+
+
+
+def testfunc(args):
 
     env = leduc.Env()
     with tf.Session() as sess:

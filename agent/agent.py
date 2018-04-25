@@ -1,5 +1,6 @@
 from keras.layers import Input, Dense
 import ConfigParser
+import utils.replay_buffer as ReplayBuffer
 
 
 class Agent:
@@ -20,6 +21,12 @@ class Agent:
         self.ar_hidden_1 = int(config.get('Agent', 'ARHidden1'))
         self.ar_hidden_2 = int(config.get('Agent', 'ARHidden2'))
 
+        # reinforcement learning memory
+        self._rl_memory = ReplayBuffer.ReplayBuffer(int(config.get('Utils', 'Buffersize')), int(config.get('Utils', 'Seed')))
+
+        # supervised learning memory
+        self._sl_memory = ReplayBuffer.ReplayBuffer(int(config.get('Utils', 'Buffersize')), int(config.get('Utils', 'Seed')))
+
         # best response network:
         self.b_inputs, self.b_out = self.init_best_response_network()
 
@@ -39,6 +46,22 @@ class Agent:
         hidden2 = Dense(self.ar_hidden_2, activation='relu')(hidden1)
         out = Dense(self.a_dim, activation='softmax')(hidden2)
         return inputs, out
+
+    @property
+    def set_rl_memory(self, buffer):
+        self._rl_memory = buffer
+
+    @property
+    def rl_memory(self):
+        return self._rl_memory
+
+    @property
+    def set_sl_memory(self, buffer):
+        self._sl_memory = buffer
+
+    @property
+    def sl_memory(self):
+        return self._sl_memory
 
     def update_best_response_network(self):
         pass

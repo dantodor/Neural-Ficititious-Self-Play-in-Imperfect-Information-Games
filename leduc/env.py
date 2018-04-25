@@ -26,7 +26,7 @@ class Env:
         self._action_space = np.zeros((1, 3))
 
     @property
-    def observation_state(self):
+    def observation_space(self):
         return self._observation_state.shape
 
     @property
@@ -44,11 +44,9 @@ class Env:
         self.pot = 0
         for _ in range(self.player_count):
             card = self._deck.pick_up()
-            print(card.__str__())
             self._specific_state.append([[card.rank(), self._public_card.rank(), self.pot],
                                          0, self._terminal, self.info])
-        print("InitialState BOT1: {}".format(self._specific_state[0]))
-        print("InitialState BOT2: {}".format(self._specific_state[1]))
+
 
     def init_state(self, player_index):
         return self._specific_state[player_index]
