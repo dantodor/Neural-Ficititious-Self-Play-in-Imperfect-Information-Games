@@ -22,6 +22,16 @@ class Env:
         self._specific_state = []
         self.info = ""
         self._left_choices = [int(self.config.get('Environment', 'Choices')), int(self.config.get('Environment', 'Choices'))]
+        self._observation_state = np.zeros((1, 3))
+        self._action_space = np.zeros((1, 3))
+
+    @property
+    def observation_state(self):
+        return self._observation_state.shape
+
+    @property
+    def action_space(self):
+        return self._action_space.shape
 
     def reset(self):
         """

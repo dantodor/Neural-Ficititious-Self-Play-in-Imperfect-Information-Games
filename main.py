@@ -1,21 +1,39 @@
 import sys, logging
 import tensorflow as tf
 import leduc.env as leduc
-import leduc.player as player
 import agent.agent as agent
 import numpy as np
 from gym import spaces
-
+import argparse
+import ConfigParser
+import utils.replay_buffer as ReplayBuffer
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
+# Configuration
+Config = ConfigParser.ConfigParser()
+Config.read("./config.ini")
 
-def testsuit():
+# ReplayBuffer
+replay_buffer = ReplayBuffer.ReplayBuffer(int(Config.get('Utils', 'Buffersize')), int(Config.get('Utils', 'Seed')))
+
+
+def main():
 
     env = leduc.Env()
+    np.random.seed(int(Config.get('Utils', 'Seed')))
+    tf.set_random_seed(int(Config.get('Utils', 'Seed')))
 
+    # initialize dimensions:
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
+
+
+
+def testfunc():
+
+    env = leduc.Env()
     with tf.Session() as sess:
-
 
         espace = spaces.Box(low=0, high=1, shape=(3,))
         observation_state = espace.shape[0]
@@ -61,8 +79,18 @@ def testsuit():
             terminal += term
             terminal += term2
 
-
-
-
 if __name__ == '__main__':
-    testsuit()
+
+    print("NFSP by David Joos")
+    parser = argparse.ArgumentParser(description='Provide arguments for NFSP agent.')
+
+    parser.add_argument('--testfunc', help='starts testfunc function instead of main', action='store_true')
+
+    args = vars(parser.parse_args())
+
+    if args['testfunc'] is True:
+        testfunc(args)
+    else:
+        main(args)
+
+
