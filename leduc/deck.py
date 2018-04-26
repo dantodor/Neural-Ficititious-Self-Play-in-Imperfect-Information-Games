@@ -29,7 +29,7 @@ class Deck:
         assert size > 0 and size % 2 == 0, 'Decksize has to be an even number which is greater than 0.'
         self._size = size
         self._fill()
-        self.fake_pub = Card(0, 0)
+        self.fake_pub = Card(-1, -1)
 
     def _fill(self):
         """Fill the deck with unshuffeled amount of cards => size."""
