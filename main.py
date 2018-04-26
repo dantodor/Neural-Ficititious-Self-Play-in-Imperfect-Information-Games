@@ -41,9 +41,6 @@ def train(sess, env, args, player1, player2):
             p2_s, r, t, i = env.step(p2_a)
 
 
-
-
-
 def main(args):
 
     with tf.Session() as sess:
