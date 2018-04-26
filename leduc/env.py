@@ -67,6 +67,9 @@ class Env:
         Provides a initial state for the players. Because of the imperfect information state
         every player get's his own initial state.
 
+        IMPORTANT: s and s2 are the same in this case. Don't use it for learning. No
+        transition has been happened to this point.
+
         :param player_index:
         :return: inital_state -> s, a, r, s, t, i
         """
@@ -86,14 +89,14 @@ class Env:
         """
 
         # Buffer to safe state before the transition to the next state happened
-        state_buffer = self._specific_state[player_index][0]
+        state_buffer = self._specific_state[player_index][3]
 
         # Check's if both players finished first betting round. If so, reveal the public card to state
         if self._left_choices[player_index] <= 2 or self._left_choices[1 if player_index == 0 else 0] <= 2:
-            if self._public_card.rank() == 0:
+            if self._public_card.rank == 0:
                 self._public_card = self._deck.pick_up()
-                self._specific_state[player_index][0][1] = self._public_card.rank()
-                self._specific_state[1 if player_index == 0 else 0][0][1] = self._public_card.rank()
+                self._specific_state[player_index][0][3] = self._public_card.rank
+                self._specific_state[1 if player_index == 0 else 0][0][3] = self._public_card.rank
 
         # Check if player has the right to take action
         if self._left_choices[player_index] > 0:
@@ -124,30 +127,34 @@ class Env:
 
         # If player has lost his right to take action (no action to take left) or
         # folded: self._terminal will be 1.
-        self._specific_state[player_index][2] = self._terminal
+        self._specific_state[player_index][4] = self._terminal
 
         # Evaluates winner
         if self._left_choices[player_index] == 0 and self._left_choices[1 if player_index == 0 else 0] <= 2:
             # Player wins:
-            if self._specific_state[player_index][0][0] == self._specific_state[player_index][0][1]:
-                self._specific_state[player_index][1] = self._pot[1 if player_index == 0 else 0]
+            if self._specific_state[player_index][3][0] == self._specific_state[player_index][3][1]:
+                self._specific_state[player_index][2] = self._pot[1 if player_index == 0 else 0]
             # Opponent wins:
-            elif self._specific_state[1 if player_index == 0 else 0][0][0] == self._specific_state[player_index][0][1]:
-                self._specific_state[player_index][1] = self._pot[player_index] * (-1)
+            elif self._specific_state[1 if player_index == 0 else 0][3][0] == self._specific_state[player_index][3][1]:
+                self._specific_state[player_index][2] = self._pot[player_index] * (-1)
             # Opponent wins:
-            elif self._specific_state[player_index][0][0] > self._specific_state[1 if player_index == 0 else 0][0][0]:
-                self._specific_state[player_index][1] = self._pot[player_index] * (-1)
+            elif self._specific_state[player_index][3][0] > self._specific_state[1 if player_index == 0 else 0][3][0]:
+                self._specific_state[player_index][2] = self._pot[player_index] * (-1)
             # Player wins:
-            elif self._specific_state[player_index][0][0] < self._specific_state[1 if player_index == 0 else 0][0][0]:
-                self._specific_state[player_index][1] = self._pot[1 if player_index == 0 else 0]
+            elif self._specific_state[player_index][3][0] < self._specific_state[1 if player_index == 0 else 0][3][0]:
+                self._specific_state[player_index][2] = self._pot[1 if player_index == 0 else 0]
             # Draw
             else:
-                self._specific_state[player_index][1] = 0
+                self._specific_state[player_index][2] = 0
 
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
-        self._specific_state[player_index][0][2] = self.pot
+        self._specific_state[player_index][3][2] = self.pot
+        # Now state_buffer is the old state:
+        self._specific_state[player_index][0] = state_buffer
+        # Store the action
+        self._specific_state[player_index][1] = action
         # Set terminal to 0 - The other player may has some actions to take left.
         self._terminal = 0
 
