@@ -1,6 +1,10 @@
-from keras.layers import Input, Dense
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.optimizers import Adam
 import ConfigParser
 import utils.replay_buffer as ReplayBuffer
+import numpy as np
+import random
 
 
 class Agent:
@@ -14,57 +18,82 @@ class Agent:
         self.a_dim = action_dim
         self.learning_rate = learning_rate
 
-        config = ConfigParser.ConfigParser()
-        config.read("./config.ini")
-        self.br_hidden_1 = int(config.get('Agent', 'BRHidden1'))
-        self.br_hidden_2 = int(config.get('Agent', 'BRHidden2'))
-        self.ar_hidden_1 = int(config.get('Agent', 'ARHidden1'))
-        self.ar_hidden_2 = int(config.get('Agent', 'ARHidden2'))
+        self.config = ConfigParser.ConfigParser()
+        self.config.read("./config.ini")
+        self.br_hidden_1 = int(self.config.get('Agent', 'BRHidden1'))
+        self.br_hidden_2 = int(self.config.get('Agent', 'BRHidden2'))
+        self.ar_hidden_1 = int(self.config.get('Agent', 'ARHidden1'))
+        self.ar_hidden_2 = int(self.config.get('Agent', 'ARHidden2'))
+
+        self.minibatch_size = int(self.config.get('Agent', 'MiniBatchSize'))
+
+        # init parameters
+        self.epsilon = float(self.config.get('Agent', 'Epsilon'))
+        self.gamma = float(self.config.get('Agent', 'Gamma'))
 
         # reinforcement learning memory
-        self._rl_memory = ReplayBuffer.ReplayBuffer(int(config.get('Utils', 'Buffersize')), int(config.get('Utils', 'Seed')))
+        self._rl_memory = ReplayBuffer.ReplayBuffer(int(self.config.get('Utils', 'Buffersize')), int(self.config.get('Utils', 'Seed')))
 
         # supervised learning memory
-        self._sl_memory = ReplayBuffer.ReplayBuffer(int(config.get('Utils', 'Buffersize')), int(config.get('Utils', 'Seed')))
+        self._sl_memory = ReplayBuffer.ReplayBuffer(int(self.config.get('Utils', 'Buffersize')), int(self.config.get('Utils', 'Seed')))
 
-        # best response network:
-        self.b_inputs, self.b_out = self.init_best_response_network()
+        # build dqn aka best response model
+        self.best_response_model = self._build_best_response_model()
 
-        # avg response network:
-        self.a_inputs, self.a_out = self.init_avg_response_network()
+        # build supervised learning model
+        self.average_response_model = self._build_avg_response_model()
 
-    def init_best_response_network(self):
-        inputs = Input(shape=[self.a_dim, ])
-        hidden1 = Dense(self.br_hidden_1, activation='relu')(inputs)
-        hidden2 = Dense(self.br_hidden_2, activation='relu')(hidden1)
-        out = Dense(self.a_dim, activation='softmax')(hidden2)
-        return inputs, out
+    def _build_best_response_model(self):
+        """
+        Initiates a DQN Agent which handles the reinforcement part of the fsp
+        algorithm.
 
-    def init_avg_response_network(self):
-        inputs = Input(shape=[self.a_dim, ])
-        hidden1 = Dense(self.ar_hidden_1, activation='relu')(inputs)
-        hidden2 = Dense(self.ar_hidden_2, activation='relu')(hidden1)
-        out = Dense(self.a_dim, activation='softmax')(hidden2)
-        return inputs, out
+        :return:
+        """
+        model = Sequential()
+        model.add(Dense(self.br_hidden_1, input_dim=self.s_dim, activation='relu'))
+        model.add(Dense(self.br_hidden_2, activation='relu'))
+        model.add(Dense(self.a_dim, activation='sigmoid'))
+        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        return model
 
-    @property
-    def set_rl_memory(self, buffer):
-        self._rl_memory = buffer
+    def _build_avg_response_model(self):
+        """
+        TODO: Find a supervised learning algorithm -> Backpropagation?
 
-    @property
-    def rl_memory(self):
-        return self._rl_memory
+        :return:
+        """
+        model = Sequential()
+        model.add(Dense(self.br_hidden_1, input_dim=self.s_dim, activation='relu'))
+        model.add(Dense(self.br_hidden_2, activation='relu'))
+        model.add(Dense(self.a_dim, activation='sigmoid'))
+        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        return model
 
-    @property
-    def set_sl_memory(self, buffer):
-        self._sl_memory = buffer
+    def remember_opponent_behaviour(self, state, action, reward, nextstate, terminal):
+        self._rl_memory.add(state, action, reward, nextstate, terminal)
 
-    @property
-    def sl_memory(self):
-        return self._sl_memory
+    def br_network_act(self, state):
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.a_dim)
+        act_values = self.model.predict(state)
+        return np.argmax(act_values[0])
 
     def update_best_response_network(self):
-        pass
+        """
+        Trains the dqn aka best response network trough
+        replay experiences.
+
+        :return:
+        """
+
+        s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+
+        for k in range(int(self.minibatch_size)):
+
+
+
+
 
     def update_avg_response_network(self):
         pass

@@ -15,7 +15,22 @@ Config = ConfigParser.ConfigParser()
 Config.read("./config.ini")
 
 
-def train(sess, env, args, player1, player2):
+def generate_data(env, player1, player2, ny=0.09):
+
+    # TODO: Do strategy mixing with mixing parameter ny
+    sigma = (1 - ny)
+    # TODO: Do n episodes sampled from strategy profile sigma
+
+    # prepare stuff
+    dealer = random.randint(0, 1)
+
+    # MaxEpisodes are the episodes which define how long it'll be trained with playerX as dealer
+    for i in range(int(Config.get('Common', 'MaxEpisodes'))):
+
+        pass
+
+
+def fsp(sess, env, args, player1, player2):
 
     # initialize tensorflow variables
     sess.run(tf.global_variables_initializer())
@@ -33,12 +48,11 @@ def train(sess, env, args, player1, player2):
         p2_s = env.init_state(1)
 
         if dealer == 0:  # player1 is dealer
-            # TODO: Fix return of env.step to -> p1_sOld, p1_a, r, p1_s, t, i
             p1_a = player1.predict(p1_s)
-            p1_s, r, t, i = env.step(p1_a)
+            p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.step(p1_a)
 
             p2_a = player2.predict(p2_s)
-            p2_s, r, t, i = env.step(p2_a)
+            p2_s_old, p2_a, p2_r, p2_s, p2_t, p2_i = env.step(p2_a)
 
 
 def main(args):
@@ -57,7 +71,8 @@ def main(args):
         player1 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
         player2 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
 
-        train(sess, env, args, player1, player2)
+        # Start fictitious self play algorithm
+        fsp(sess, env, args, player1, player2)
 
 
 
