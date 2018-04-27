@@ -34,25 +34,48 @@ def fsp(sess, env, args, player1, player2):
 
     # initialize tensorflow variables
     sess.run(tf.global_variables_initializer())
+    print("Global variables initialized")
 
     for i in range(int(Config.get('Common', 'MaxEpisodes'))):
 
+        print("Chosing a dealer")
         # choose a dealer randomly
-        dealer = random.randint(0, 1)
+        dealer = 0 # random.randint(0, 1)
 
-        # reset env
-        env.reset()
+        for j in range(int(Config.get('Common', 'MaxEpisodeLen'))):
+            print("play game.")
 
-        # get initial state
-        p1_s = env.init_state(0)
-        p2_s = env.init_state(1)
+            env.reset()
 
-        if dealer == 0:  # player1 is dealer
-            p1_a = player1.predict(p1_s)
-            p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.step(p1_a)
+            # get initial state
+            # p1_s = env.init_state(0)
+            # p2_s = env.init_state(1)
 
-            p2_a = player2.predict(p2_s)
-            p2_s_old, p2_a, p2_r, p2_s, p2_t, p2_i = env.step(p2_a)
+            terminated = False
+            while not terminated:
+
+                if dealer == 0:  # player1 is dealer
+                    # Player1 access state, decide and does an env step
+                    p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.get_new_state(0)
+                    print("Got new state")
+                    p1_a = player1.br_network_act(p1_s)
+                    print("Predicted action")
+                    env.step(p1_a, 0)
+                    print("Has done step")
+
+                    # Player2 access, state, decide and does an env step
+                    p2_s_old, p2_a, p2_r, p2_s, p2_t, p2_i = env.get_new_state(1)
+                    p2_a = player2.br_network_act(p2_s)
+                    env.step(p2_a, 1)
+
+                    player1.remember_opponent_behaviour(p1_s_old, p1_a, p1_r, p1_s, p1_t)
+                    player2.remember_opponent_behaviour(p2_s_old, p2_a, p2_r, p2_s, p2_t)
+
+                    if p1_t == 1 and p2_t == 1:
+                        terminated = True
+
+            player1.update_best_response_network()
+            player2.update_best_response_network()
 
 
 def main(args):

@@ -29,6 +29,8 @@ class Agent:
 
         # init parameters
         self.epsilon = float(self.config.get('Agent', 'Epsilon'))
+        self.epsilon_min = float(self.config.get('Agent', 'EpsilonMin'))
+        self.epsilon_decay = float(self.config.get('Agent', 'EpsilonDecay'))
         self.gamma = float(self.config.get('Agent', 'Gamma'))
 
         # reinforcement learning memory
@@ -87,13 +89,24 @@ class Agent:
         :return:
         """
 
-        s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+        if self._rl_memory.size() > self.minibatch_size:
+            s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
 
-        for k in range(int(self.minibatch_size)):
+            for k in range(int(self.minibatch_size)):
+                target = 0
+                if t_batch[k] == 1:
+                    target = r_batch[k]
+                else:
+                    target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
+                target_f = self.best_response_model.predict(s_batch)
+                target_f[0][a_batch[k]] = target
 
-
-
-
+                print("target_f: {}".format(target_f))
+                print("s_batch[k]: {}".format(s_batch[k]))
+                print('Target: {}'.format(target))
+                self.best_response_model.fit(np.reshape(s_batch[k], (3, )), np.reshape(target_f[0], (3,)), epochs=1, verbose=0)
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
 
     def update_avg_response_network(self):
         pass

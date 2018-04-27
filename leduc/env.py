@@ -25,16 +25,16 @@ class Env:
         self._specific_state = []
         self._info = ""
         self._left_choices = [int(self.config.get('Environment', 'Choices')), int(self.config.get('Environment', 'Choices'))]
-        self._observation_state = np.zeros((1, 3))
-        self._action_space = np.zeros((1, 3))
+        self._observation_state = 3  #np.zeros((1, 3))
+        self._action_space = 3  #np.zeros((1, 3))
 
     @property
     def observation_space(self):
-        return self._observation_state.shape
+        return self._observation_state
 
     @property
     def action_space(self):
-        return self._action_space.shape
+        return self._action_space
 
     def reset(self):
         """
@@ -51,14 +51,14 @@ class Env:
         for _ in range(self.player_count):
             # Define return tuple for step()
             card = self._deck.pick_up().rank
-            return_tuple = np.array([[
+            return_tuple = np.array([
                 [card, self._public_card.rank, self.pot],   # state
                 self._action_space,                         # action
                 self._reward,                               # reward
                 [card, self._public_card.rank, self.pot],   # next state
                 self._terminal,                             # terminal
                 self._info                                  # info
-            ]])
+            ])
             # Append tuple for each player which got a different card from deck
             self._specific_state.append(return_tuple)
 
@@ -140,9 +140,6 @@ class Env:
         # Set terminal to 0 - The other player may has some actions to take left.
         self._terminal = 0
 
-        # Return state, action, reward, next state, terminal, info
-        return self._specific_state[player_index]
-
     def get_new_state(self, player_index):
         """
         Returns new state after both players has taken step
@@ -150,6 +147,8 @@ class Env:
         :param player_index: int in range (0, 1)
         :return: s, a, r, s2, t, i (s = state, a = action, r = reward, s2 = new state, t = terminated, i = info)
         """
+        print("This is the new state: {}".format(self._specific_state[player_index][3]))
+
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
