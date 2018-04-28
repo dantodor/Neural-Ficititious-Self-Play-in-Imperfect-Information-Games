@@ -111,7 +111,7 @@ class Agent:
                 if t_batch[k] == 1:
                     target = r_batch[k]
                 else:
-                    target r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
+                    target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
 
                 target_f = self.best_response_model.predict(s_batch[k], batch_size=1)
 
