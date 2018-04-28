@@ -1,11 +1,15 @@
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.models import Model
+from keras.layers import Dense, Input
 from keras.optimizers import Adam
 import ConfigParser
 import utils.replay_buffer as ReplayBuffer
 import numpy as np
+from keras.callbacks import TensorBoard
 import random
 
+tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
+                          write_graph=True, write_images=False)
 
 class Agent:
     """
@@ -43,7 +47,7 @@ class Agent:
         self.best_response_model = self._build_best_response_model()
 
         # build supervised learning model
-        self.average_response_model = self._build_avg_response_model()
+        # self.average_response_model = self._build_avg_response_model()
 
     def _build_best_response_model(self):
         """
@@ -52,10 +56,20 @@ class Agent:
 
         :return:
         """
-        model = Sequential()
-        model.add(Dense(self.br_hidden_1, input_dim=self.s_dim, activation='relu'))
-        model.add(Dense(self.br_hidden_2, activation='relu'))
-        model.add(Dense(self.a_dim, activation='sigmoid'))
+        # model = Sequential()
+        # model.add(Dense(self.br_hidden_1, input_dim=self.s_dim, activation='relu'))
+        # model.add(Dense(self.br_hidden_2, activation='relu'))
+        # model.add(Dense(self.a_dim, activation='sigmoid'))
+        # model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+
+        x, y = self.s_dim
+        input_shape = self.s_dim[1:]
+        input_ = Input(shape=input_shape, name='input')
+        hidden1 = Dense(self.br_hidden_1, activation='relu')(input_)
+        hidden2 = Dense(self.br_hidden_2, activation='relu')(hidden1)
+        out = Dense(3, activation='sigmoid')(hidden2)
+
+        model = Model(inputs=input_, outputs=out, name="br-model")
         model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
         return model
 
@@ -76,9 +90,9 @@ class Agent:
         self._rl_memory.add(state, action, reward, nextstate, terminal)
 
     def br_network_act(self, state):
-        if np.random.rand() <= self.epsilon:
-            return random.randrange(self.a_dim)
-        act_values = self.model.predict(state)
+        #if np.random.rand() <= self.epsilon:
+        #    return random.randrange(self.a_dim)
+        act_values = self.best_response_model.predict(state, verbose=0)
         return np.argmax(act_values[0])
 
     def update_best_response_network(self):
@@ -93,23 +107,30 @@ class Agent:
             s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
 
             for k in range(int(self.minibatch_size)):
-                target = 0
+                target = []
                 if t_batch[k] == 1:
                     target = r_batch[k]
                 else:
-                    target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
-                target_f = self.best_response_model.predict(s_batch)
+                    target r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
+
+                target_f = self.best_response_model.predict(s_batch[k], batch_size=1)
+
                 target_f[0][a_batch[k]] = target
 
-                print("target_f: {}".format(target_f))
-                print("s_batch[k]: {}".format(s_batch[k]))
-                print('Target: {}'.format(target))
-                self.best_response_model.fit(np.reshape(s_batch[k], (3, )), np.reshape(target_f[0], (3,)), epochs=1, verbose=0)
+                self.best_response_model.fit(s_batch[k], target_f, epochs=1, verbose=0, callbacks=[tensorboard])
             if self.epsilon > self.epsilon_min:
                 self.epsilon *= self.epsilon_decay
 
     def update_avg_response_network(self):
         pass
+
+    def evaluate_best_response_network(self):
+        if self._rl_memory.size() > self.minibatch_size:
+            s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+            s_batch2, a_batch2, r_batch2, s2_batch2, t_batch2 = self._rl_memory.sample_batch(self.minibatch_size)
+            for k in range(self.minibatch_size):
+                eval_ = self.best_response_model.evaluate(s_batch[k], s2_batch[k])
+            print (eval_)
 
     def predict(self, inputs):
         return self.sess.run(self.a_out, feed_dict={

@@ -25,8 +25,15 @@ class Env:
         self._specific_state = []
         self._info = ""
         self._left_choices = [int(self.config.get('Environment', 'Choices')), int(self.config.get('Environment', 'Choices'))]
+
+        # dimensions
+        self._state_shape = np.zeros((1, 3))
         self._observation_state = 3  #np.zeros((1, 3))
         self._action_space = 3  #np.zeros((1, 3))
+
+    @property
+    def dim_shape(self):
+        return self._state_shape.shape
 
     @property
     def observation_space(self):
@@ -52,10 +59,10 @@ class Env:
             # Define return tuple for step()
             card = self._deck.pick_up().rank
             return_tuple = np.array([
-                [card, self._public_card.rank, self.pot],   # state
+                np.array([[card, self._public_card.rank, self.pot]]),   # state
                 self._action_space,                         # action
                 self._reward,                               # reward
-                [card, self._public_card.rank, self.pot],   # next state
+                np.array([[card, self._public_card.rank, self.pot]]),   # next state
                 self._terminal,                             # terminal
                 self._info                                  # info
             ])
@@ -91,8 +98,8 @@ class Env:
         if self._left_choices[player_index] <= 2 or self._left_choices[1 if player_index == 0 else 0] <= 2:
             if self._public_card.rank == 0:
                 self._public_card = self._deck.pick_up()
-                self._specific_state[player_index][0][3] = self._public_card.rank
-                self._specific_state[1 if player_index == 0 else 0][0][3] = self._public_card.rank
+                self._specific_state[player_index][0][0][3] = self._public_card.rank
+                self._specific_state[1 if player_index == 0 else 0][0][0][3] = self._public_card.rank
 
         # Check if player has the right to take action
         if self._left_choices[player_index] > 0:
@@ -100,14 +107,14 @@ class Env:
             # Act
             if action == 0:
                 # fold -> terminate, shift reward to opponent
-                print("FOLDING")
+                # print("FOLDING")
                 # Penalty for instant folding even if opponent hasn't raised so far
                 if self._left_choices[player_index] == 4 and self._left_choices[1 if player_index == 0 else 0] == 4:
                     self._specific_state[player_index][2] = int(self.config.get('Agent', 'Penalty'))
                 self._terminal = 1
 
             if action == 1:
-                print("CALLING")
+                # print("CALLING")
                 # call -> fit pot
                 self._left_choices[player_index] -= 1
                 if self._pot[player_index] < self._pot[1 if player_index == 0 else 0]:
@@ -115,7 +122,7 @@ class Env:
                 self._terminal = 1 if self._left_choices[player_index] == 0 else 0
 
             if action == 2:
-                print("RAISING")
+                # print("RAISING")
                 # raise
                 # Penalty for doing a raise but hasn't the right to
                 if self._left_choices[player_index] % 2 != 0:
@@ -134,7 +141,7 @@ class Env:
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
-        self._specific_state[player_index][3][2] = self.pot
+        self._specific_state[player_index][3][0][2] = self.pot
         # Store the action
         self._specific_state[player_index][1] = action
         # Set terminal to 0 - The other player may has some actions to take left.
@@ -147,28 +154,28 @@ class Env:
         :param player_index: int in range (0, 1)
         :return: s, a, r, s2, t, i (s = state, a = action, r = reward, s2 = new state, t = terminated, i = info)
         """
-        print("This is the new state: {}".format(self._specific_state[player_index][3]))
+        # print("This is the new state: {}".format(self._specific_state[player_index][3]))
 
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
-        self._specific_state[player_index][3][2] = self.pot
+        self._specific_state[player_index][3][0][2] = self.pot
         # Means, for each player game has terminated if opponent has terminated
         self._specific_state[player_index][4] = self._specific_state[1 if player_index == 0 else 0][4]
 
         # If game has terminated, winner can be evaluated
         if self._specific_state[player_index][4] == 1:
             # Player wins:
-            if self._specific_state[player_index][3][0] == self._specific_state[player_index][3][1]:
+            if self._specific_state[player_index][3][0][0] == self._specific_state[player_index][3][0][1]:
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Opponent wins:
-            elif self._specific_state[1 if player_index == 0 else 0][3][0] == self._specific_state[player_index][3][1]:
+            elif self._specific_state[1 if player_index == 0 else 0][3][0][0] == self._specific_state[player_index][3][0][1]:
                 self._specific_state[player_index][2] += self._pot[player_index] * (-1)
             # Opponent wins:
-            elif self._specific_state[player_index][3][0] > self._specific_state[1 if player_index == 0 else 0][3][0]:
+            elif self._specific_state[player_index][3][0][0] > self._specific_state[1 if player_index == 0 else 0][3][0][0]:
                 self._specific_state[player_index][2] += self._pot[player_index] * (-1)
             # Player wins:
-            elif self._specific_state[player_index][3][0] < self._specific_state[1 if player_index == 0 else 0][3][0]:
+            elif self._specific_state[player_index][3][0][0] < self._specific_state[1 if player_index == 0 else 0][3][0][0]:
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Draw
             else:

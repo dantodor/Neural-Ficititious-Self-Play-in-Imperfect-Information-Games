@@ -43,7 +43,6 @@ def fsp(sess, env, args, player1, player2):
         dealer = 0 # random.randint(0, 1)
 
         for j in range(int(Config.get('Common', 'MaxEpisodeLen'))):
-            print("play game.")
 
             env.reset()
 
@@ -57,11 +56,8 @@ def fsp(sess, env, args, player1, player2):
                 if dealer == 0:  # player1 is dealer
                     # Player1 access state, decide and does an env step
                     p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.get_new_state(0)
-                    print("Got new state")
                     p1_a = player1.br_network_act(p1_s)
-                    print("Predicted action")
                     env.step(p1_a, 0)
-                    print("Has done step")
 
                     # Player2 access, state, decide and does an env step
                     p2_s_old, p2_a, p2_r, p2_s, p2_t, p2_i = env.get_new_state(1)
@@ -72,7 +68,13 @@ def fsp(sess, env, args, player1, player2):
                     player2.remember_opponent_behaviour(p2_s_old, p2_a, p2_r, p2_s, p2_t)
 
                     if p1_t == 1 and p2_t == 1:
+                        # print("="*45)
+                        # print("Result:")
+                        # print("p1_a: {}, p1_r: {}, p1_s: {}".format(p1_a, p1_r, p1_s))
+                        # print("p2_a: {}, p2_r: {}, p2_s: {}".format(p2_a, p2_r, p2_s))
                         terminated = True
+                        player1.evaluate_best_response_network()
+                        player2.evaluate_best_response_network()
 
             player1.update_best_response_network()
             player2.update_best_response_network()
@@ -87,8 +89,8 @@ def main(args):
         tf.set_random_seed(int(Config.get('Utils', 'Seed')))
 
         # initialize dimensions:
-        state_dim = env.observation_space
-        action_dim = env.action_space
+        state_dim = env.dim_shape
+        action_dim = env.dim_shape
 
         # initialize players
         player1 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
