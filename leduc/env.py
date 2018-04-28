@@ -180,5 +180,6 @@ class Env:
             # Draw
             else:
                 self._specific_state[player_index][2] += 0
+        self._terminal = 0
 
         return self._specific_state[player_index]

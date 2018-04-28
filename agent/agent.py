@@ -8,8 +8,6 @@ import numpy as np
 from keras.callbacks import TensorBoard
 import random
 
-tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
-                          write_graph=True, write_images=False)
 
 class Agent:
     """
@@ -48,6 +46,10 @@ class Agent:
 
         # build supervised learning model
         # self.average_response_model = self._build_avg_response_model()
+
+        # tensorborad
+        self.tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
+                                  write_graph=True, write_images=False)
 
     def _build_best_response_model(self):
         """
@@ -113,11 +115,16 @@ class Agent:
                 else:
                     target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
 
-                target_f = self.best_response_model.predict(s_batch[k], batch_size=1)
+                target_f = self.best_response_model.predict(s_batch[k])
 
                 target_f[0][a_batch[k]] = target
 
-                self.best_response_model.fit(s_batch[k], target_f, epochs=1, verbose=0, callbacks=[tensorboard])
+                """
+                target      = predicted future reward
+                target_f    = immediate prediction
+                """
+                print("Iteration: {}".format(k))
+                self.best_response_model.fit(s_batch[k], target_f, epochs=1, verbose=2, callbacks=[self.tensorboard])
             if self.epsilon > self.epsilon_min:
                 self.epsilon *= self.epsilon_decay
 
@@ -125,14 +132,10 @@ class Agent:
         pass
 
     def evaluate_best_response_network(self):
-        if self._rl_memory.size() > self.minibatch_size:
-            s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
-            s_batch2, a_batch2, r_batch2, s2_batch2, t_batch2 = self._rl_memory.sample_batch(self.minibatch_size)
-            for k in range(self.minibatch_size):
-                eval_ = self.best_response_model.evaluate(s_batch[k], s2_batch[k])
-            print (eval_)
-
-    def predict(self, inputs):
-        return self.sess.run(self.a_out, feed_dict={
-            self.a_inputs: inputs
-        })
+        pass
+        # if self._rl_memory.size() > self.minibatch_size:
+        #     s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+        #     s_batch2, a_batch2, r_batch2, s2_batch2, t_batch2 = self._rl_memory.sample_batch(self.minibatch_size)
+        #     for k in range(self.minibatch_size):
+        #         eval_ = self.best_response_model.evaluate(s_batch[k], s2_batch[k])
+        #     print (eval_)

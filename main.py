@@ -42,6 +42,9 @@ def fsp(sess, env, args, player1, player2):
         # choose a dealer randomly
         dealer = 0 # random.randint(0, 1)
 
+        wins_p1 = 0
+        wins_p2 = 0
+
         for j in range(int(Config.get('Common', 'MaxEpisodeLen'))):
 
             env.reset()
@@ -51,8 +54,9 @@ def fsp(sess, env, args, player1, player2):
             # p2_s = env.init_state(1)
 
             terminated = False
+            print("INFRONT OF WHILE!=!=!=")
             while not terminated:
-
+                print("INNERHALB DER SCHLEIFE AMK")
                 if dealer == 0:  # player1 is dealer
                     # Player1 access state, decide and does an env step
                     p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.get_new_state(0)
@@ -72,12 +76,22 @@ def fsp(sess, env, args, player1, player2):
                         # print("Result:")
                         # print("p1_a: {}, p1_r: {}, p1_s: {}".format(p1_a, p1_r, p1_s))
                         # print("p2_a: {}, p2_r: {}, p2_s: {}".format(p2_a, p2_r, p2_s))
+                        if p1_r > p2_r:
+                            wins_p1 += 1
+                        else:
+                            wins_p2 += 1
                         terminated = True
-                        player1.evaluate_best_response_network()
-                        player2.evaluate_best_response_network()
+                        # player1.evaluate_best_response_network()
+                        # player2.evaluate_best_response_network()
 
+            if j % 200 == 0:
+                print ("Wins Player1: {}, Wins Player2: {}".format(wins_p1, wins_p2))
+                wins_p1 = 0
+                wins_p2 = 0
             player1.update_best_response_network()
+            print("TEST")
             player2.update_best_response_network()
+            print("TEST2")
 
 
 def main(args):
