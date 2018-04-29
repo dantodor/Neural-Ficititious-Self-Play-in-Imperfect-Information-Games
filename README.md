@@ -17,53 +17,68 @@ env = leduc.Env()
 env.reset()
 
 # To get initial state without an action for player with index 0
+# Deprecated, will be removed in further versions
 s, r, t, i = env.init_state(0)
 
 # To take action in leduc poker you need:
-# your action -> array with shape: [x, y, z] where x = fold, y = call, z = raise
+# your action -> int where 0 = fold, 1 = call, 2 = raise
 # player index -> for example 0
-s, r, t, i = env.step(action, 0)
+action = player.predict(s)
+env.step(action, 0)
+
+# Because of a two player env you need to wait until the other 
+# Player has done a step aswell. Then geht new state:
+# Pass your player index to function:
+s, a, r, s2, t, i = env.get_new_state(0)
 
 # If game terminates:
 env.reset()
 ```
 
-## Struktur
-### Idee
-Das Programm wird in drei Module gesplitted:
-1. Agent
-2. Environment
-3. Controller
+## Agent
+The agent is the acting module of the program, in other the words:
+the artifical intelligence, which should learn the optimal
+strategy. It's represented by two neural networks:
 
-#### Agent
-Ficticous self-play ist ein Algorithmus zum finden der optimalen
-Strategie indem der Agent gegen sich selbst spielt. Dabei besteht
-der Agent aus zwei neuronalen Netzen.
-1. Das eine Netz dient zur Vorhersage des nächsten Zuges. Bestimmt
-also die eigene Strategie.
-2. Das zweite Netz dient zu Vorhersage des Gegnerzuges. Diese Aussage
-wird als Parameter dem ersten neuronalen Netz übergeben.
+1. Best Response Network
+2. Average Response Network
 
-Das erste Netz lernt mit einem Reinforcement Learning Algorithmus.
-Der Agent lernt dabei aus seinen eigenen Aktionen und den daraus
-resultierenden Rewards.
+The best response network learns with neural fitted q iteration
+algorithm the best response to the opponents behaviour.
 
-Das zweite Netz lernt mit einem Supervised Learning Algorithmus.
-Dafür nutzt er die gespielten Züge des Gegners.
+The average response network learns with simple supervised 
+techniques the average strategy of itself.
 
-#### Environment
-Stellt die Spielwelt zur Verfügung. Der Agent kann die Spielwelt
-aufrufen und Parameter an diese übergeben - im Umkehrschluss 
-holt sich der Agent den aktuellen Stand des Spiels ebenfalls über
-das Environment.
+The code can be found under `agent/agent.py`.
 
-#### Controller
-Initialisiert die Agenten (Spieler), das Environment und startet
-das Spiel und regelt dessen Ablauf. Enthält die main() Funktion.
+### Usage
+```python
+import agent.agent as agent
 
-## TODO
-1. Agenten
-2. Controller
+# Because it's ficticious self play, we need at least two
+# instances of the agent and call it: player
+# sess = tensorflow.Session()
+# state_dim, action_dim = env.dim_shape
+# learning_rate can be changed in config.ini
+player1 = agent.Agent(sess, state_dim, action_dim, learning_rate)
+player2 = # ...
 
+# Act with best response network:
+action = player1.best_response_model.predict(s)
+env.set(action)
+
+# Get states and remember them for replay memory
+s, a, r, s2, t, i = env.get_new_state(player1_index)
+player1.remember_opponent_behaviour(s, a, r, s2, t)
+
+# When you sampled enough data, you can update the network
+# It will update the Q-Function which is represented by 
+# the network with supervised learning methods (because of
+# replay memory).
+player1.update_best_response_network()
+
+# TODO: average response network
+
+```
 
 
