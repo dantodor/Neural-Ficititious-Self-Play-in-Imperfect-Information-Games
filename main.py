@@ -56,7 +56,8 @@ def fsp(sess, env, args, player1, player2):
                         # Player2
                         p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
                         p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        env.step(p2_a, 1)
+                        if p2_t != 1:
+                            env.step(p2_a, 1)
 
                         first_round = False
                     else:
@@ -64,15 +65,24 @@ def fsp(sess, env, args, player1, player2):
                         player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
                         p1_s = p1_s2
                         p1_a, p1_is_avg_strat = player1.act(p1_s)
-                        env.step(p1_a)
+                        if p1_t != 1:
+                            env.step(p1_a, 0)
 
                         p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
                         player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
                         p2_s = p2_s2
                         p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        env.step(p2_a)
+                        if p2_t != 1:
+                            env.step(p2_a, 1)
 
                     if p1_t == 1 and p2_t == 1:
+                        if p1_r > p2_r:
+                            log.debug("Dealer is player1 - Winner is player1")
+                        elif p1_r == p2_r:
+                            log.debug("Dealer is player1 - Draw")
+                        else:
+                            log.debug("Dealer is player1 - Winner is player2")
+
                         terminated = True
 
                 if dealer == 1:  # player2 is dealer
@@ -84,7 +94,8 @@ def fsp(sess, env, args, player1, player2):
                         # Player1
                         p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
                         p1_a, p1_is_avg_strat = player1.act(p2_s)
-                        env.step(p1_a, 0)
+                        if p1_t != 1:
+                            env.step(p1_a, 0)
 
                         first_round = False
                     else:
@@ -92,15 +103,23 @@ def fsp(sess, env, args, player1, player2):
                         player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
                         p2_s = p2_s2
                         p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        env.step(p2_a, 1)
+                        if p2_t != 1:
+                            env.step(p2_a, 1)
 
                         p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
                         player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
                         p1_s = p1_s2
                         p1_a, p1_is_avg_strat = player1.act(p2_s)
-                        env.step(p1_a, 0)
+                        if p1_t != 1:
+                            env.step(p1_a, 0)
 
                     if p1_t == 1 and p2_t == 1:
+                        if p1_r > p2_r:
+                            log.debug("Dealer is player2 - Winner is player1")
+                        elif p1_r == p2_r:
+                            log.debug("Dealer is player2 - Draw")
+                        else:
+                            log.debug("Dealer is player2 - Winner is player2")
                         terminated = True
 
         player1.update_strategy()
@@ -120,8 +139,8 @@ def main(args):
         action_dim = env.dim_shape
 
         # initialize players
-        player1 = agent.Agent(sess, state_dim, action_dim)
-        player2 = agent.Agent(sess, state_dim, action_dim)
+        player1 = agent.Agent(sess, state_dim, action_dim, 'player1')
+        player2 = agent.Agent(sess, state_dim, action_dim, 'player2')
 
         # Start fictitious self play algorithm
         fsp(sess, env, args, player1, player2)

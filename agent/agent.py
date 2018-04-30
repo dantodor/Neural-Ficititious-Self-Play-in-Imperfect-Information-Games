@@ -14,10 +14,11 @@ class Agent:
     Agent which contains the model & strategy
     """
 
-    def __init__(self, sess, state_dim, action_dim):
+    def __init__(self, sess, state_dim, action_dim, name):
         self.sess = sess
         self.s_dim = state_dim
         self.a_dim = action_dim
+        self.name = name
 
         self.config = ConfigParser.ConfigParser()
         self.config.read("./config.ini")
@@ -34,6 +35,9 @@ class Agent:
 
         # mixed anticipatory parameter
         self.eta = float(self.config.get('Agent', 'Eta'))
+
+        # target network update counter
+        self.target_br_model_update_count = 0
 
         # reinforcement learning memory
         self._rl_memory = ReplayBuffer.ReplayBuffer(int(self.config.get('Utils', 'Buffersize')),
@@ -54,8 +58,11 @@ class Agent:
         # self.average_response_model = self._build_avg_response_model()
 
         # tensorborad
-        self.tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
-                                       write_graph=True, write_images=True)
+        self.tensorboard_br = TensorBoard(log_dir='./logs/'+self.name+'rl', histogram_freq=0,
+                                       write_graph=False, write_images=True)
+
+        self.tensorboard_sl = TensorBoard(log_dir='./logs/'+self.name+'sl', histogram_freq=0,
+                                       write_graph=False, write_images=True)
 
     def _build_best_response_model(self):
         """
@@ -71,7 +78,7 @@ class Agent:
         out = Dense(3, activation='sigmoid')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="br-model")
-        model.compile(loss='mse', optimizer=SGD(lr=self.lr_br))
+        model.compile(loss='mean_squared_error', optimizer=SGD(lr=self.lr_br), metrics={self.name: 'categorical_accuracy'})
         return model
 
     def _build_avg_response_model(self):
@@ -86,21 +93,25 @@ class Agent:
         out = Dense(3, activation='sigmoid')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="ar-model")
-        model.compile(loss='mean_squared_logarithmic_error', optimizer=SGD(lr=self.lr_ar))
+        model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics={self.name: 'categorical_accuracy'})
         return model
 
     def remember_by_strategy(self, state, action, reward, nextstate, terminal, is_avg_stratey):
         if is_avg_stratey:
-            self._sl_memory.add(state, action, reward, nextstate, terminal)
+            self._rl_memory.add(state, action, reward, nextstate, terminal)
         else:
             self._rl_memory.add(state, action, reward, nextstate, terminal)
+            self._sl_memory.add(state, action, reward, nextstate, terminal)
 
     def act(self, state):
         if random.random() > self.eta:
             # Append strategy information: True -> avg strategy is played
             return self.avg_strategy_model.predict(state), True
         else:
-            return self.best_response_model.predict(state), False
+            if random.random() > self.epsilon:
+                return self.best_response_model.predict(state), False
+            else:
+                return np.random.rand(1, 3), False
 
     def update_strategy(self):
         self.update_best_response_network()
@@ -123,11 +134,17 @@ class Agent:
                 else:
                     target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
 
-                target_f = self.best_response_model.predict(s_batch[k])
+                target_f = self.target_br_model.predict(s_batch[k])
 
-                target_f[0][a_batch[k]] = target
+                target_f[0][np.argmax(a_batch[k])] = target
 
-                self.best_response_model.fit(s_batch[k], target_f, epochs=1, verbose=2, callbacks=[self.tensorboard])
+                self.best_response_model.fit(s_batch[k], target_f, verbose=0, callbacks=[self.tensorboard_br])
+
+                # update target network every 300 steps
+                self.target_br_model_update_count += 1
+                if self.target_br_model_update_count % 300 == 0:
+                    self.update_br_target_network()
+
             if self.epsilon > self.epsilon_min:
                 self.epsilon *= self.epsilon_decay
 
@@ -139,8 +156,7 @@ class Agent:
         if self._sl_memory.size() > self.minibatch_size:
             s_batch, a_batch, _, _, _ = self._sl_memory.sample_batch(self.minibatch_size)
             for k in range(int(self.minibatch_size)):
-                print("This is what i pass: {} {}".format(s_batch[k], a_batch[k]))
-                self.avg_strategy_model.fit(s_batch[k], a_batch[k], verbose=2, callbacks=[self.tensorboard])
+                self.avg_strategy_model.fit(s_batch[k], a_batch[k], verbose=0, callbacks=[self.tensorboard_sl])
 
     def update_br_target_network(self):
         self.target_br_model.set_weights(self.best_response_model.get_weights())

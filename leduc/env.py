@@ -54,10 +54,13 @@ class Env:
         self._public_card = self._deck.fake_pub_card()
         self._pot = [0, 0]
         self.pot = 0
+        self._specific_state = []
+        self._left_choices = [int(self.config.get('Environment', 'Choices')), int(self.config.get('Environment', 'Choices'))]
 
-        for _ in range(self.player_count):
+        for j in range(self.player_count):
             # Define return tuple for step()
             card = self._deck.pick_up().rank
+            # print("Player with index {} got card with rank: {}".format(j,card))
             return_tuple = np.array([
                 np.array([[card, self._public_card.rank, self.pot]]),   # state
                 self._action_space,                         # action
@@ -102,6 +105,10 @@ class Env:
 
             # Get index of action with highest value
             action_value = np.argmax(action)
+            # if player_index == 0:
+            #     print("Player1 has done: {}".format(action_value))
+            # else:
+            #     print("Player2 has done: {}".format(action_value))
 
             # Act
             if action_value == 0:
@@ -170,6 +177,10 @@ class Env:
         if self._specific_state[player_index][3] == 1:
             # Player wins:
             if self._specific_state[player_index][0][0][0] == self._specific_state[player_index][0][0][1]:
+                # if player_index == 0:
+                #     print("player1 had same card")
+                # elif player_index == 1:
+                #     print("player2 had same card")
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Opponent wins:
             elif self._specific_state[1 if player_index == 0 else 0][0][0][0] == self._specific_state[player_index][0][0][1]:
@@ -179,6 +190,12 @@ class Env:
                 self._specific_state[player_index][2] += self._pot[player_index] * (-1)
             # Player wins:
             elif self._specific_state[player_index][0][0][0] < self._specific_state[1 if player_index == 0 else 0][0][0][0]:
+                # print("Card player1: {}, Card player2: {}".format(self._specific_state[player_index][0][0][0], self._specific_state[1 if player_index == 0 else 0][0][0][0]))
+                # print("Complete state: {}".format(self._specific_state[player_index][0]))
+                # if player_index == 0:
+                #     print("player1 had higher card")
+                # elif player_index == 1:
+                #     print("player2 had higher card")
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Draw
             else:
