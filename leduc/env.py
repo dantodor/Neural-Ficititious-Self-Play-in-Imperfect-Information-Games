@@ -100,8 +100,11 @@ class Env:
         # Check if player has the right to take action
         if self._left_choices[player_index] > 0:
 
+            # Get index of action with highest value
+            action_value = np.argmax(action)
+
             # Act
-            if action == 0:
+            if action_value == 0:
                 # fold -> terminate, shift reward to opponent
                 # print("FOLDING")
                 # Penalty for instant folding even if opponent hasn't raised so far
@@ -109,7 +112,7 @@ class Env:
                     self._specific_state[player_index][2] = int(self.config.get('Agent', 'Penalty'))
                 self._terminal = 1
 
-            if action == 1:
+            if action_value == 1:
                 # print("CALLING")
                 # call -> fit pot
                 self._left_choices[player_index] -= 1
@@ -117,7 +120,7 @@ class Env:
                     self._pot[player_index] += 1
                 self._terminal = 1 if self._left_choices[player_index] == 0 else 0
 
-            if action == 2:
+            if action_value == 2:
                 # print("RAISING")
                 # raise
                 # Penalty for doing a raise but hasn't the right to
@@ -140,6 +143,10 @@ class Env:
         self._specific_state[player_index][0][0][2] = self.pot
         # Store the action
         self._specific_state[player_index][1] = action
+
+        # Update terminal state
+        self._specific_state[player_index][3] = self._terminal
+
         # Set terminal to 0 - The other player may has some actions to take left.
         self._terminal = 0
 

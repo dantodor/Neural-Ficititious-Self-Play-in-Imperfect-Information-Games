@@ -7,8 +7,11 @@ from gym import spaces
 import argparse
 import ConfigParser
 import random
+import logging
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+log = logging.getLogger('')
+
 
 # Configuration
 Config = ConfigParser.ConfigParser()
@@ -19,19 +22,13 @@ def fsp(sess, env, args, player1, player2):
 
     # initialize tensorflow variables
     sess.run(tf.global_variables_initializer())
-    print("Global variables initialized")
 
     for i in range(int(Config.get('Common', 'MaxEpisodes'))):
 
-        print("Chosing a dealer")
-        # choose a dealer randomly
+        # init temp vars
         dealer = 0
-
         wins_p1 = 0
         wins_p2 = 0
-
-        player1.mix_strategy()
-        player2.mix_strategy()
 
         for j in range(int(Config.get('Common', 'Episodes'))):
 
@@ -64,13 +61,13 @@ def fsp(sess, env, args, player1, player2):
                         first_round = False
                     else:
                         p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
-                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_is_avg_strat)
+                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
                         p1_s = p1_s2
                         p1_a, p1_is_avg_strat = player1.act(p1_s)
                         env.step(p1_a)
 
-                        p2_s2, p2_a, p2_r, p2_i = env.get_new_state(1)
-                        player2.remember_by_strategy(p2_s, p2_a, p2_s2, p2_t, p2_is_avg_strat)
+                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
+                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
                         p2_s = p2_s2
                         p2_a, p2_is_avg_strat = player2.act(p2_s)
                         env.step(p2_a)
@@ -92,13 +89,13 @@ def fsp(sess, env, args, player1, player2):
                         first_round = False
                     else:
                         p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
-                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_is_avg_strat)
+                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
                         p2_s = p2_s2
                         p2_a, p2_is_avg_strat = player2.act(p2_s)
                         env.step(p2_a, 1)
 
-                        p1_s2, p1_a, p1_r, p1_i = env.get_new_state(0)
-                        player1.remember_by_strategy(p1_s, p1_a, p1_s2, p1_t, p1_is_avg_strat)
+                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
+                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
                         p1_s = p1_s2
                         p1_a, p1_is_avg_strat = player1.act(p2_s)
                         env.step(p1_a, 0)

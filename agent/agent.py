@@ -55,7 +55,7 @@ class Agent:
 
         # tensorborad
         self.tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
-                                       write_graph=True, write_images=False)
+                                       write_graph=True, write_images=True)
 
     def _build_best_response_model(self):
         """
@@ -88,18 +88,6 @@ class Agent:
         model = Model(inputs=input_, outputs=out, name="ar-model")
         model.compile(loss='mean_squared_logarithmic_error', optimizer=SGD(lr=self.lr_ar))
         return model
-
-    def remember_opponent_behaviour(self, state, action, reward, nextstate, terminal):
-        self._rl_memory.add(state, action, reward, nextstate, terminal)
-
-    def remember_own_behaviour(self, state, action):
-        """
-        Store behaviour tuple (s_t, a_t) for supervised learning
-
-        :param state: state vector
-        :param action: action vector
-        """
-        pass
 
     def remember_by_strategy(self, state, action, reward, nextstate, terminal, is_avg_stratey):
         if is_avg_stratey:
@@ -151,7 +139,8 @@ class Agent:
         if self._sl_memory.size() > self.minibatch_size:
             s_batch, a_batch, _, _, _ = self._sl_memory.sample_batch(self.minibatch_size)
             for k in range(int(self.minibatch_size)):
-                self.avg_strategy_model.fit(s_batch[k], a_batch[k])
+                print("This is what i pass: {} {}".format(s_batch[k], a_batch[k]))
+                self.avg_strategy_model.fit(s_batch[k], a_batch[k], verbose=2, callbacks=[self.tensorboard])
 
     def update_br_target_network(self):
         self.target_br_model.set_weights(self.best_response_model.get_weights())
