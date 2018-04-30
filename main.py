@@ -15,21 +15,6 @@ Config = ConfigParser.ConfigParser()
 Config.read("./config.ini")
 
 
-def generate_data(env, player1, player2, ny=0.09):
-
-    # TODO: Do strategy mixing with mixing parameter ny
-    sigma = (1 - ny)
-    # TODO: Do n episodes sampled from strategy profile sigma
-
-    # prepare stuff
-    dealer = random.randint(0, 1)
-
-    # MaxEpisodes are the episodes which define how long it'll be trained with playerX as dealer
-    for i in range(int(Config.get('Common', 'MaxEpisodes'))):
-
-        pass
-
-
 def fsp(sess, env, args, player1, player2):
 
     # initialize tensorflow variables
@@ -40,58 +25,89 @@ def fsp(sess, env, args, player1, player2):
 
         print("Chosing a dealer")
         # choose a dealer randomly
-        dealer = 0 # random.randint(0, 1)
+        dealer = 0
 
         wins_p1 = 0
         wins_p2 = 0
 
-        for j in range(int(Config.get('Common', 'MaxEpisodeLen'))):
+        player1.mix_strategy()
+        player2.mix_strategy()
+
+        for j in range(int(Config.get('Common', 'Episodes'))):
 
             env.reset()
+            # Pass init state to players
+            p1_s = env.init_state(0)
+            p2_s = env.init_state(1)
 
-            # get initial state
-            # p1_s = env.init_state(0)
-            # p2_s = env.init_state(1)
+            # Setting avg to false, will be overwritten later on
+            p1_is_avg_strat = False
+            p2_is_avg_strat = False
+
+            # Randomly set dealer
+            dealer = random.randint(0, 1)
 
             terminated = False
-            print("INFRONT OF WHILE!=!=!=")
+            first_round = True
             while not terminated:
-                print("INNERHALB DER SCHLEIFE AMK")
                 if dealer == 0:  # player1 is dealer
-                    # Player1 access state, decide and does an env step
-                    p1_s_old, p1_a, p1_r, p1_s, p1_t, p1_i = env.get_new_state(0)
-                    p1_a = player1.br_network_act(p1_s)
-                    env.step(p1_a, 0)
+                    if first_round:
+                        # Player1 follows predicted action on init state
+                        p1_a, p1_is_avg_strat = player1.act(p1_s)
+                        env.step(p1_a, 0)
 
-                    # Player2 access, state, decide and does an env step
-                    p2_s_old, p2_a, p2_r, p2_s, p2_t, p2_i = env.get_new_state(1)
-                    p2_a = player2.br_network_act(p2_s)
-                    env.step(p2_a, 1)
+                        # Player2
+                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
+                        p2_a, p2_is_avg_strat = player2.act(p2_s)
+                        env.step(p2_a, 1)
 
-                    player1.remember_opponent_behaviour(p1_s_old, p1_a, p1_r, p1_s, p1_t)
-                    player2.remember_opponent_behaviour(p2_s_old, p2_a, p2_r, p2_s, p2_t)
+                        first_round = False
+                    else:
+                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
+                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_is_avg_strat)
+                        p1_s = p1_s2
+                        p1_a, p1_is_avg_strat = player1.act(p1_s)
+                        env.step(p1_a)
+
+                        p2_s2, p2_a, p2_r, p2_i = env.get_new_state(1)
+                        player2.remember_by_strategy(p2_s, p2_a, p2_s2, p2_t, p2_is_avg_strat)
+                        p2_s = p2_s2
+                        p2_a, p2_is_avg_strat = player2.act(p2_s)
+                        env.step(p2_a)
 
                     if p1_t == 1 and p2_t == 1:
-                        # print("="*45)
-                        # print("Result:")
-                        # print("p1_a: {}, p1_r: {}, p1_s: {}".format(p1_a, p1_r, p1_s))
-                        # print("p2_a: {}, p2_r: {}, p2_s: {}".format(p2_a, p2_r, p2_s))
-                        if p1_r > p2_r:
-                            wins_p1 += 1
-                        else:
-                            wins_p2 += 1
                         terminated = True
-                        # player1.evaluate_best_response_network()
-                        # player2.evaluate_best_response_network()
 
-            if j % 200 == 0:
-                print ("Wins Player1: {}, Wins Player2: {}".format(wins_p1, wins_p2))
-                wins_p1 = 0
-                wins_p2 = 0
-            player1.update_best_response_network()
-            print("TEST")
-            player2.update_best_response_network()
-            print("TEST2")
+                if dealer == 1:  # player2 is dealer
+                    if first_round:
+                        # Player2 follows predicted action on init state
+                        p2_a, p2_is_avg_strat = player2.act(p2_s)
+                        env.step(p2_a, 1)
+
+                        # Player1
+                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
+                        p1_a, p1_is_avg_strat = player1.act(p2_s)
+                        env.step(p1_a, 0)
+
+                        first_round = False
+                    else:
+                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
+                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_is_avg_strat)
+                        p2_s = p2_s2
+                        p2_a, p2_is_avg_strat = player2.act(p2_s)
+                        env.step(p2_a, 1)
+
+                        p1_s2, p1_a, p1_r, p1_i = env.get_new_state(0)
+                        player1.remember_by_strategy(p1_s, p1_a, p1_s2, p1_t, p1_is_avg_strat)
+                        p1_s = p1_s2
+                        p1_a, p1_is_avg_strat = player1.act(p2_s)
+                        env.step(p1_a, 0)
+
+                    if p1_t == 1 and p2_t == 1:
+                        terminated = True
+
+        player1.update_strategy()
+        player2.update_strategy()
 
 
 def main(args):
@@ -107,12 +123,11 @@ def main(args):
         action_dim = env.dim_shape
 
         # initialize players
-        player1 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
-        player2 = agent.Agent(sess, state_dim, action_dim, float(Config.get('Agent', 'LearningRate')))
+        player1 = agent.Agent(sess, state_dim, action_dim)
+        player2 = agent.Agent(sess, state_dim, action_dim)
 
         # Start fictitious self play algorithm
         fsp(sess, env, args, player1, player2)
-
 
 
 def testfunc(args):

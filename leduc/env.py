@@ -62,7 +62,6 @@ class Env:
                 np.array([[card, self._public_card.rank, self.pot]]),   # state
                 self._action_space,                         # action
                 self._reward,                               # reward
-                np.array([[card, self._public_card.rank, self.pot]]),   # next state
                 self._terminal,                             # terminal
                 self._info                                  # info
             ])
@@ -74,13 +73,10 @@ class Env:
         Provides a initial state for the players. Because of the imperfect information state
         every player get's his own initial state.
 
-        IMPORTANT: s and s2 are the same in this case. Don't use it for learning. No
-        transition has been happened to this point.
-
         :param player_index:
-        :return: inital_state -> s, a, r, s, t, i
+        :return: inital_state -> s as initial_state
         """
-        return self._specific_state[player_index]
+        return self._specific_state[player_index][0]
 
     def step(self, action, player_index):
         """
@@ -136,12 +132,12 @@ class Env:
 
         # If player has lost his right to take action (no action to take left) or
         # folded: self._terminal will be 1.
-        self._specific_state[player_index][4] = self._terminal
+        self._specific_state[player_index][3] = self._terminal
 
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
-        self._specific_state[player_index][3][0][2] = self.pot
+        self._specific_state[player_index][0][0][2] = self.pot
         # Store the action
         self._specific_state[player_index][1] = action
         # Set terminal to 0 - The other player may has some actions to take left.
@@ -152,30 +148,30 @@ class Env:
         Returns new state after both players has taken step
 
         :param player_index: int in range (0, 1)
-        :return: s, a, r, s2, t, i (s = state, a = action, r = reward, s2 = new state, t = terminated, i = info)
+        :return: s, a, r, t, i (s = state, a = action, r = reward, s2 = new state, t = terminated, i = info)
         """
         # print("This is the new state: {}".format(self._specific_state[player_index][3]))
 
         # Computes pot by an addition of each players specific pot
         self.pot = self._pot[player_index] + self._pot[1 if player_index == 0 else 0]
         # Updates pot
-        self._specific_state[player_index][3][0][2] = self.pot
+        self._specific_state[player_index][0][0][2] = self.pot
         # Means, for each player game has terminated if opponent has terminated
-        self._specific_state[player_index][4] = self._specific_state[1 if player_index == 0 else 0][4]
+        self._specific_state[player_index][3] = self._specific_state[1 if player_index == 0 else 0][3]
 
         # If game has terminated, winner can be evaluated
-        if self._specific_state[player_index][4] == 1:
+        if self._specific_state[player_index][3] == 1:
             # Player wins:
-            if self._specific_state[player_index][3][0][0] == self._specific_state[player_index][3][0][1]:
+            if self._specific_state[player_index][0][0][0] == self._specific_state[player_index][0][0][1]:
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Opponent wins:
-            elif self._specific_state[1 if player_index == 0 else 0][3][0][0] == self._specific_state[player_index][3][0][1]:
+            elif self._specific_state[1 if player_index == 0 else 0][0][0][0] == self._specific_state[player_index][0][0][1]:
                 self._specific_state[player_index][2] += self._pot[player_index] * (-1)
             # Opponent wins:
-            elif self._specific_state[player_index][3][0][0] > self._specific_state[1 if player_index == 0 else 0][3][0][0]:
+            elif self._specific_state[player_index][0][0][0] > self._specific_state[1 if player_index == 0 else 0][0][0][0]:
                 self._specific_state[player_index][2] += self._pot[player_index] * (-1)
             # Player wins:
-            elif self._specific_state[player_index][3][0][0] < self._specific_state[1 if player_index == 0 else 0][3][0][0]:
+            elif self._specific_state[player_index][0][0][0] < self._specific_state[1 if player_index == 0 else 0][0][0][0]:
                 self._specific_state[player_index][2] += self._pot[1 if player_index == 0 else 0]
             # Draw
             else:
