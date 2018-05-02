@@ -22,7 +22,8 @@ class Card:
     @property
     def rank(self):
         return self._rank
-    
+
+
 class Deck:
     """A reduced deck with six cards, 2 suits and 3 ranks."""
     def __init__(self, size=6):
