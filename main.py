@@ -1,6 +1,6 @@
 import sys, logging
 import tensorflow as tf
-import leduc.env as leduc
+import leduc.newenv as leduc
 import agent.agent as agent
 import numpy as np
 from gym import spaces
@@ -135,8 +135,8 @@ def main(args):
         tf.set_random_seed(int(Config.get('Utils', 'Seed')))
 
         # initialize dimensions:
-        state_dim = env.dim_shape
-        action_dim = env.dim_shape
+        state_dim = env.observation_space
+        action_dim = env.action_space
 
         # initialize players
         player1 = agent.Agent(sess, state_dim, action_dim, 'player1')

@@ -71,7 +71,6 @@ class Agent:
 
         :return:
         """
-        x, y = self.s_dim
         input_shape = self.s_dim[1:]
         input_ = Input(shape=input_shape, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
