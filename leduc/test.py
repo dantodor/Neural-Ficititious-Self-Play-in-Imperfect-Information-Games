@@ -5,25 +5,14 @@ import deck
 import numpy as np
 import ConfigParser
 
-class Test:
-    def __init__(self, name):
-        self._name = name
+actions_done = []
+actions_done.append('Call')
+actions_done.append('Raise')
 
-    @property
-    def name(self):
-        return self._name
+action_value = 2
 
-    def change(self, name):
-        self._name = name
+if len(actions_done) == 2 and actions_done[0] == 'Call' and actions_done[1] == 'Raise' \
+        and action_value == 2:
+    action_value = 1
 
-if __name__ == '__main__':
-    one = Test('David')
-    two = Test('Manu')
-
-    sample = [one, two]
-
-    print(sample[0].name)
-
-    sample[0].change('Lukas')
-
-    print(sample[0].name)
+print (action_value)

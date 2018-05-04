@@ -26,12 +26,6 @@ def fsp(sess, env, args, player1, player2):
     players = [player1, player2]
 
     for i in range(int(Config.get('Common', 'MaxEpisodes'))):
-
-        # init temp vars
-        dealer = 0
-        wins_p1 = 0
-        wins_p2 = 0
-
         for j in range(int(Config.get('Common', 'Episodes'))):
 
             env.reset()
@@ -50,57 +44,55 @@ def fsp(sess, env, args, player1, player2):
             d_t = False
             terminated = False
             first_round = True
-            print("Reseted env, d_t: {}".format(d_t))
+            # print("Reseted env, d_t: {}".format(d_t))
             while not terminated:
 
                 actual_round = env.round_index
-                print("="*50)
-                print("PLAYING ROUND - {}".format(actual_round))
-                d_a, d_is_avg_strat = players[dealer].act(d_s2)
-                if d_t is False:
-                    print("Dealer stepped.")
+                # DEALER
+                # If Dealer has not terminated so far do act and env.step
+                if not d_t:
+                    d_a, d_is_avg_strat = players[dealer].act(d_s2)
                     env.step(d_a, dealer)
 
-                    n_s = n_s2
-                    n_s2, n_a, n_r, n_t = env.get_state(n)
-                    test = True
-                    print("Test: {}".format(test))
-                    print("n_t is: {}".format(n_t))
-                    time.sleep(2)
-                    if first_round is not True:
-                        players[n].remember_by_strategy(n_s, n_a, n_r, n_s2, n_t, n_is_avg_strat)
+                # NOT DEALER
+                # N get's new state
+                n_s = n_s2
+                n_s2, n_a, n_r, n_t = env.get_state(n)
+                # Don't memorize experience of first round, because it's unbound to
+                # Dealers action
+                if not first_round:
+                    players[n].remember_by_strategy(n_s, n_a, n_r, n_s2, n_t, n_is_avg_strat)
+                # If not terminated so far do act and env.step
+                if not n_t:
                     n_a, n_is_avg_strat = players[n].act(n_s2)
-                    if n_t is False:
-                        print("N stepped.")
-                        env.step(n_a, n)
+                    env.step(n_a, n)
 
-                        d_s = d_s2
-                        d_s2, d_a, d_r, d_t = env.get_state(dealer)
-                        players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
-                        if actual_round == env.round_index and d_t is False:
-                            d_a, d_is_avg_strat = players[dealer].act(d_s2)
-                            print("Dealer stepped")
-                            env.step(d_a, dealer)
-                            d_s = d_s2
-                            d_s2, d_a, d_r, d_t = env.get_state(dealer)
-                            players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
+                # DEALER
+                # Dealer get's new State after N played as well
+                d_s = d_s2
+                d_s2, d_a, d_r, d_t = env.get_state(dealer)
+                # If it's still same round as at the beginning of the loop, it seems that this round or the
+                # game has not terminated -> Dealer has to do an action.
+                players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
+                if actual_round == env.round_index and d_t is False:
+                    d_a, d_is_avg_strat = players[dealer].act(d_s2)
+                    env.step(d_a, dealer)
+                    d_s = d_s2
+                    d_s2, d_a, d_r, d_t = env.get_state(dealer)
+                    players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
 
                 first_round = False
 
                 if n_t and d_t:
+                    # Just check if rewards are fitting the rules and the idea of a
+                    # zero sum game
                     if abs(d_r) - abs(n_r) != 0 or d_r + n_r > 0 or d_r + n_r < 0:
-                        log.debug("="*30)
-                        log.debug("Round: {}".format(actual_round))
-                        log.debug("Dealer is: {}, Dealer-Reward: {}, n-reward: {}".format(dealer, d_r, n_r))
-                        log.debug("Dealer-Action: {}, n-Action:{}".format(np.argmax(d_a), np.argmax(n_a)))
+                        pass
+                        # log.debug("="*30)
+                        # log.debug("Round: {}".format(actual_round))
+                        # log.debug("Dealer is: {}, Dealer-Reward: {}, n-reward: {}".format(dealer, d_r, n_r))
+                        # log.debug("Dealer-Action: {}, n-Action:{}".format(np.argmax(d_a), np.argmax(n_a)))
                     terminated = True
-
-                elif n_t or d_t:
-                    print("SOMETHING WENT WRONG!")
-
-                    """
-                    Hängt in Round 1 und hat prett -> nur n_t oder d_t ist terminated
-                    """
 
         player1.update_strategy()
         player2.update_strategy()
