@@ -18,7 +18,7 @@ class Env:
         self.config.read("./config.ini")
 
         # Init config variables
-        self.player_count = int(self.config.get('Environment', 'Decksize'))
+        self.player_count = int(self.config.get('Environment', 'Playercount'))
         self.decksize = int(self.config.get('Environment', 'Decksize'))
         self.max_rounds = int(self.config.get('Environment', 'MaxRounds'))
         self.suits = int(self.config.get('Environment', 'Suits'))
@@ -33,7 +33,7 @@ class Env:
         self.cards = []
 
         # Init game variables
-        self.specific_cards = []
+        self.specific_cards = np.zeros((self.player_count, self.max_rounds, (self.decksize / self.suits)))
         self.round = 0
         self.terminated = False
         self.raises = []
@@ -45,8 +45,14 @@ class Env:
         self.round_raises = 0
         self.last_action = []
 
+        self.actions_done = []
+
         # Init specific state
         self.history = np.zeros((self.player_count, self.max_rounds, self.max_raises, self._action_space))
+
+    @property
+    def round_index(self):
+        return self.round
 
     @property
     def action_space(self):
@@ -57,7 +63,10 @@ class Env:
     def observation_space(self):
         o = self.history.flatten()
         c = self.specific_cards[0].flatten()
-        o = np.concatenate((o, c)).shape
+        s = np.concatenate((o, c), axis=0)
+        s = np.zeros((1, len(s)))
+        print("FINAL S: {}".format(s.shape))
+        return s.shape
 
     def reset(self):
         # Re-init deck as Object of type deck
@@ -78,6 +87,8 @@ class Env:
         self.round_raises = 0
         self.last_action = np.zeros((self.player_count, self.total_action_space))
 
+        self.actions_done = []
+
         # Init specific cards
         self.specific_cards = np.zeros((self.player_count, self.max_rounds, (self.decksize / self.suits)))
 
@@ -93,11 +104,14 @@ class Env:
     def get_state(self, p_index):
         cards = self.specific_cards[p_index]
         state = np.concatenate((self.history.flatten(), self.specific_cards[p_index].flatten()))
+        # TODO make it dynamic
+        state = np.reshape(state, (1, 1, 30))
+        action = np.reshape(self.last_action[p_index], (1, 1, 3))
         if self.terminated:
-            return state, self.last_action[p_index], self.reward[p_index], self.terminated
+            return state, action, self.reward[p_index], self.terminated
         else:
             # Return zero as reward because there is no
-            return state, self.last_action[p_index], 0, self.terminated
+            return state, action, 0, self.terminated
 
     def step(self, action, p_index):
         """
@@ -108,12 +122,11 @@ class Env:
         """
 
         # Deconstruct raises, calls, round etc
-        raises = self.raises[p_index]
         o_index = 1 if p_index == 0 else 1  # TODO: make it dynamic for more than 2 players!
         p_calls = self.calls[p_index]
         o_calls = self.calls[o_index]
         p_raises = self.raises[p_index]
-        # o_raises = self.raises[o_index]
+        o_raises = self.raises[o_index]
 
         # Get action with highest value
         action_value = np.argmax(action)
@@ -131,26 +144,41 @@ class Env:
         # Fold:
         if action_value == 0:
             self.terminated = True
+            self.actions_done.append('Fold')
 
         # Check, call
         elif action_value == 1:
             self.history[p_index][self.round][self.round_raises][action_index] = 1
             p_calls += 1
             self.round_raises += 1
+            self.calls[p_index] += 1
+            self.actions_done.append('Call')
 
         # Raise
         elif action_value == 2:
             self.history[p_index][self.round][self.round_raises][action_index] = 1
             p_raises += 1
+            self.raises[p_index] += 1
             self.overall_raises[p_index] += 1
             self.round_raises += 1
+            self.actions_done.append('Raise')
 
         # Check if game or round has terminated and not folded
-        if not self.terminated and p_calls == o_calls and o_calls != 0 or \
-                not self.terminated and self.round_raises == 3:
+        round_over = False
+        if not self.terminated and len(self.actions_done) == 2:
+            if self.actions_done[0] == 'Call' and self.actions_done[1] == 'Call' \
+                    or self.actions_done[0] == 'Raise' and self.actions_done[1] == 'Call':
+                round_over = True
+        elif not self.terminated and len(self.actions_done) == 3:
+            if self.actions_done[0] == 'Call' and self.actions_done[1] == 'Raise' and self.actions_done[2] == 'Call' \
+                    or self.actions_done[0] == 'Raise' and self.actions_done[1] == 'Raise' and self.actions_done[2] == 'Call':
+                round_over = True
+
+        if round_over:
             if self.round == 1:
+                # Game has terminated
                 self.terminated = True
-            else:
+            elif self.round == 0:
                 # Update card vector of next round with private card from round_k-1
                 self.specific_cards[p_index][(self.round + 1)] = self.specific_cards[p_index][self.round]
                 self.specific_cards[o_index][(self.round + 1)] = self.specific_cards[o_index][self.round]
@@ -163,38 +191,45 @@ class Env:
                 self.p_card_revealed = True
                 # Determine reward from first round
                 self.reward[p_index] = np.sum(self.overall_raises)
-                self.reward[o_index] = self.reward[p_index]
-                self.round += 1
+                self.reward[o_index] = np.sum(self.overall_raises)
+                self.round = 1
                 # Set raises and calls to zero - in new round nothing happened
                 # so far
                 self.raises = np.zeros(2)
                 self.calls = np.zeros(2)
                 self.round_raises = 0
-        # If game or round hasn't terminated, update raises and calls
-        else:
-            self.raises[p_index] = p_raises
-            self.calls[p_index] = p_calls
+                # Print actions done in round:
+                # print("Player{} has finised".format(p_index))
+                print("Actions done: {}".format(self.actions_done))
+                self.actions_done = []
+            else:
+                print("Round not specified.")
 
         # Determine rewards if terminated
-        if self.terminated is True:
-
+        if self.terminated:
+            print("Terminated, actions: {}".format(self.actions_done))
             # Player has folded: Reward is at least zero
             if action_value == 0:
                 if self.round == 0:
-                    if raises[p_index] > 0:
-                        self.reward[p_index] = raises[p_index] * (-1)
-                        self.reward[o_index] = raises[p_index]
+                    if p_raises > 0:
+                        self.reward[p_index] = p_raises * (-1)
+                        self.reward[o_index] = p_raises
                     else:
                         self.reward[p_index] = 0
                         self.reward[o_index] = 0
                 else:
-                    if raises[p_index] > 0:
-                        self.reward[p_index] += raises[p_index]
+                    if p_raises > 0:
+                        self.reward[p_index] += p_raises
                         self.reward[p_index] *= -1
-                        self.reward[o_index] += raises[p_index]
+                        self.reward[o_index] += p_raises
+                    else:
+                        self.reward[p_index] = self.reward[o_index] * (-1)
+
+                if abs(self.reward[p_index]) - abs(self.reward[o_index]) != 0:
+                    print("p-index: {}, o_index: {}".format(self.reward[p_index], self.reward[o_index]))
 
             # No one has folded, check winner by card
-            if action_value != 0:
+            else:
                 # Deconstruct cards
                 p_cards = self.specific_cards[p_index][self.round]
                 o_cards = self.specific_cards[o_index][self.round]
@@ -202,6 +237,8 @@ class Env:
                 # Compute total reward
                 self.reward[p_index] = np.sum(self.overall_raises)
                 self.reward[o_index] = self.reward[p_index]
+                if abs(self.reward[p_index]) - abs(self.reward[o_index]) != 0:
+                    print("p_index: {}, o_index: {}".format(self.reward[p_index], self.reward[o_index]))
 
                 # Check if one player has same card as public card
                 # If just one index has value 1, the player has same rank

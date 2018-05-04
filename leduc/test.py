@@ -5,11 +5,25 @@ import deck
 import numpy as np
 import ConfigParser
 
-test = False
-test1 = True
-lel = True
-lol = 1
-tcha = 0
+class Test:
+    def __init__(self, name):
+        self._name = name
 
-if lol == 2 and test and test1 or lel and tcha == 0:
-    print("Jawollo prollo")
+    @property
+    def name(self):
+        return self._name
+
+    def change(self, name):
+        self._name = name
+
+if __name__ == '__main__':
+    one = Test('David')
+    two = Test('Manu')
+
+    sample = [one, two]
+
+    print(sample[0].name)
+
+    sample[0].change('Lukas')
+
+    print(sample[0].name)

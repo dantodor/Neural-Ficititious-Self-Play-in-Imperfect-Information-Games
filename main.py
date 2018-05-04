@@ -8,7 +8,7 @@ import argparse
 import ConfigParser
 import random
 import logging
-
+import time
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 log = logging.getLogger('')
 
@@ -23,6 +23,8 @@ def fsp(sess, env, args, player1, player2):
     # initialize tensorflow variables
     sess.run(tf.global_variables_initializer())
 
+    players = [player1, player2]
+
     for i in range(int(Config.get('Common', 'MaxEpisodes'))):
 
         # init temp vars
@@ -33,94 +35,72 @@ def fsp(sess, env, args, player1, player2):
         for j in range(int(Config.get('Common', 'Episodes'))):
 
             env.reset()
-            # Pass init state to players
-            p1_s = env.init_state(0)
-            p2_s = env.init_state(1)
-
-            # Setting avg to false, will be overwritten later on
-            p1_is_avg_strat = False
-            p2_is_avg_strat = False
 
             # Randomly set dealer
             dealer = random.randint(0, 1)
+            n = 1 if dealer == 0 else 0
+            # Pass init state to players
+            d_s2 = env.get_state(dealer)[0]
+            n_s2 = env.get_state(n)[0]
 
+            # Setting avg to false, will be overwritten later on
+            d_is_avg_strat = False
+            n_is_avg_strat = False
+            n_t = False
+            d_t = False
             terminated = False
             first_round = True
+            print("Reseted env, d_t: {}".format(d_t))
             while not terminated:
-                if dealer == 0:  # player1 is dealer
-                    if first_round:
-                        # Player1 follows predicted action on init state
-                        p1_a, p1_is_avg_strat = player1.act(p1_s)
-                        env.step(p1_a, 0)
 
-                        # Player2
-                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
-                        p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        if p2_t != 1:
-                            env.step(p2_a, 1)
+                actual_round = env.round_index
+                print("="*50)
+                print("PLAYING ROUND - {}".format(actual_round))
+                d_a, d_is_avg_strat = players[dealer].act(d_s2)
+                if d_t is False:
+                    print("Dealer stepped.")
+                    env.step(d_a, dealer)
 
-                        first_round = False
-                    else:
-                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
-                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
-                        p1_s = p1_s2
-                        p1_a, p1_is_avg_strat = player1.act(p1_s)
-                        if p1_t != 1:
-                            env.step(p1_a, 0)
+                    n_s = n_s2
+                    n_s2, n_a, n_r, n_t = env.get_state(n)
+                    test = True
+                    print("Test: {}".format(test))
+                    print("n_t is: {}".format(n_t))
+                    time.sleep(2)
+                    if first_round is not True:
+                        players[n].remember_by_strategy(n_s, n_a, n_r, n_s2, n_t, n_is_avg_strat)
+                    n_a, n_is_avg_strat = players[n].act(n_s2)
+                    if n_t is False:
+                        print("N stepped.")
+                        env.step(n_a, n)
 
-                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
-                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
-                        p2_s = p2_s2
-                        p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        if p2_t != 1:
-                            env.step(p2_a, 1)
+                        d_s = d_s2
+                        d_s2, d_a, d_r, d_t = env.get_state(dealer)
+                        players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
+                        if actual_round == env.round_index and d_t is False:
+                            d_a, d_is_avg_strat = players[dealer].act(d_s2)
+                            print("Dealer stepped")
+                            env.step(d_a, dealer)
+                            d_s = d_s2
+                            d_s2, d_a, d_r, d_t = env.get_state(dealer)
+                            players[dealer].remember_by_strategy(d_s, d_a, d_r, d_s2, d_t, d_is_avg_strat)
 
-                    if p1_t == 1 and p2_t == 1:
-                        if p1_r > p2_r:
-                            log.debug("Dealer is player1 - Winner is player1")
-                        elif p1_r == p2_r:
-                            log.debug("Dealer is player1 - Draw")
-                        else:
-                            log.debug("Dealer is player1 - Winner is player2")
+                first_round = False
 
-                        terminated = True
+                if n_t and d_t:
+                    if abs(d_r) - abs(n_r) != 0 or d_r + n_r > 0 or d_r + n_r < 0:
+                        log.debug("="*30)
+                        log.debug("Round: {}".format(actual_round))
+                        log.debug("Dealer is: {}, Dealer-Reward: {}, n-reward: {}".format(dealer, d_r, n_r))
+                        log.debug("Dealer-Action: {}, n-Action:{}".format(np.argmax(d_a), np.argmax(n_a)))
+                    terminated = True
 
-                if dealer == 1:  # player2 is dealer
-                    if first_round:
-                        # Player2 follows predicted action on init state
-                        p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        env.step(p2_a, 1)
+                elif n_t or d_t:
+                    print("SOMETHING WENT WRONG!")
 
-                        # Player1
-                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
-                        p1_a, p1_is_avg_strat = player1.act(p2_s)
-                        if p1_t != 1:
-                            env.step(p1_a, 0)
-
-                        first_round = False
-                    else:
-                        p2_s2, p2_a, p2_r, p2_t, p2_i = env.get_new_state(1)
-                        player2.remember_by_strategy(p2_s, p2_a, p2_r, p2_s2, p2_t, p2_is_avg_strat)
-                        p2_s = p2_s2
-                        p2_a, p2_is_avg_strat = player2.act(p2_s)
-                        if p2_t != 1:
-                            env.step(p2_a, 1)
-
-                        p1_s2, p1_a, p1_r, p1_t, p1_i = env.get_new_state(0)
-                        player1.remember_by_strategy(p1_s, p1_a, p1_r, p1_s2, p1_t, p1_is_avg_strat)
-                        p1_s = p1_s2
-                        p1_a, p1_is_avg_strat = player1.act(p2_s)
-                        if p1_t != 1:
-                            env.step(p1_a, 0)
-
-                    if p1_t == 1 and p2_t == 1:
-                        if p1_r > p2_r:
-                            log.debug("Dealer is player2 - Winner is player1")
-                        elif p1_r == p2_r:
-                            log.debug("Dealer is player2 - Draw")
-                        else:
-                            log.debug("Dealer is player2 - Winner is player2")
-                        terminated = True
+                    """
+                    Hängt in Round 1 und hat prett -> nur n_t oder d_t ist terminated
+                    """
 
         player1.update_strategy()
         player2.update_strategy()
@@ -146,67 +126,17 @@ def main(args):
         fsp(sess, env, args, player1, player2)
 
 
-def testfunc(args):
-
-    env = leduc.Env()
-    with tf.Session() as sess:
-
-        espace = spaces.Box(low=0, high=1, shape=(3,))
-        observation_state = espace.shape[0]
-        a = agent.Agent(sess, observation_state, observation_state, 1)
-        # state = np.array([[1, 2, 4]])
-        # state = np.zeros((1, 3))
-        # state[0][1] = 5
-        sess.run(tf.global_variables_initializer())
-
-        env.reset()
-
-        #BOT1
-        state, reward, term, info = env.init_state(0)
-        state = np.array([state])
-        action1 = a.predict(state)
-        action1 = [0, 0, 1]
-        print("Action BOT1: {}".format(action1))
-
-        #BOT2
-        state, reward, term, info = env.init_state(1)
-        state = np.array([state])
-        action2 = a.predict(state)
-        action2 = [0, 0, 1]
-        print("Action BOT2: {}".format(action2))
-
-        terminal = 0
-        while terminal <= 1:
-            print("="*30)
-            print("BOT1:")
-            state, reward, term, info = env.step(action1, 0)
-            print("state: {}".format(state))
-            print("reward: {}".format(reward))
-            print("terminal: {}".format(term))
-            print("info: {}".format(info))
-            print("=" * 30)
-            print("BOT2:")
-            state, reward, term2, info = env.step(action2, 1)
-            print("state: {}".format(state))
-            print("reward: {}".format(reward))
-            print("terminal: {}".format(term2))
-            print("info: {}".format(info))
-
-            terminal += term
-            terminal += term2
-
 if __name__ == '__main__':
 
     print("NFSP by David Joos")
     parser = argparse.ArgumentParser(description='Provide arguments for NFSP agent.')
 
-    parser.add_argument('--testfunc', help='starts testfunc function instead of main', action='store_true')
+    # parser.add_argument('--testfunc', help='starts testfunc function instead of main', action='store_true')
 
     args = vars(parser.parse_args())
 
-    if args['testfunc'] is True:
-        testfunc(args)
-    else:
-        main(args)
+    # if args['testfunc'] is True:
+    #     pass
+    # else:
 
-
+    main(args)

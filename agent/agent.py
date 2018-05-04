@@ -71,8 +71,7 @@ class Agent:
 
         :return:
         """
-        input_shape = self.s_dim[1:]
-        input_ = Input(shape=input_shape, name='input')
+        input_ = Input(shape=self.s_dim, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
         out = Dense(3, activation='sigmoid')(hidden)
 
@@ -86,13 +85,12 @@ class Agent:
 
         :return:
         """
-        input_shape = self.s_dim[1:]
-        input_ = Input(shape=input_shape, name='input')
+        input_ = Input(shape=self.s_dim, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
         out = Dense(3, activation='sigmoid')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="ar-model")
-        model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics={self.name: 'categorical_accuracy'})
+        model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics=['accuracy'])
         return model
 
     def remember_by_strategy(self, state, action, reward, nextstate, terminal, is_avg_stratey):
@@ -103,6 +101,7 @@ class Agent:
             self._sl_memory.add(state, action, reward, nextstate, terminal)
 
     def act(self, state):
+        # state = np.reshape(state, (1, 1, 30))
         if random.random() > self.eta:
             # Append strategy information: True -> avg strategy is played
             return self.avg_strategy_model.predict(state), True
@@ -128,14 +127,14 @@ class Agent:
 
             for k in range(int(self.minibatch_size)):
                 target = []
-                if t_batch[k] == 1:
+                if t_batch[k] is True:
                     target = r_batch[k]
                 else:
                     target = r_batch[k] + self.gamma * np.amax(self.best_response_model.predict(s2_batch[k]))
 
                 target_f = self.target_br_model.predict(s_batch[k])
 
-                target_f[0][np.argmax(a_batch[k])] = target
+                target_f[0][0][np.argmax(a_batch[k])] = target
 
                 self.best_response_model.fit(s_batch[k], target_f, verbose=0, callbacks=[self.tensorboard_br])
 
