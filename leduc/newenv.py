@@ -109,8 +109,8 @@ class Env:
         cards = self.specific_cards[p_index]
         state = np.concatenate((self.history.flatten(), self.specific_cards[p_index].flatten()))
         # TODO make it dynamic
-        state = np.reshape(state, (1, 1, 30))
-        action = np.reshape(self.last_action[p_index], (1, 1, 3))
+        state = np.reshape(state, (1, 30))
+        action = np.reshape(self.last_action[p_index], (1, 3))
         if self.terminated:
             if abs(self.reward[p_index]) - abs(self.reward[1 if p_index == 0 else 0]) != 0:
                 # print("Wo ist es: {}".format(self.reward_made_index))
@@ -135,10 +135,6 @@ class Env:
         if not self.terminated:
             # Deconstruct raises, calls, round etc
             o_index = 1 if p_index == 0 else 0  # TODO: make it dynamic for more than 2 players!
-            p_calls = self.calls[p_index]
-            o_calls = self.calls[o_index]
-            p_raises = self.raises[p_index]
-            o_raises = self.raises[o_index]
 
             # Get action with highest value
             action_value = np.argmax(action)
@@ -147,7 +143,7 @@ class Env:
             # If player has raised in this round before - action_value is set to
             # call - 0 to 2 raises are allowed. Maximum one raise per player.
             # AND prevent: Call, Raise, Raise:
-            if p_raises == 1 and action_value == 2:
+            if self.raises[p_index] > 0 and action_value == 2:
                 action_value = 1
             if len(self.actions_done) == 2 and self.actions_done[0] == 'Call' and self.actions_done[1] == 'Raise' \
                     and action_value == 2:
@@ -167,15 +163,13 @@ class Env:
                 # if self.round_raises > 2:
                 #     print("Bisherige Actions: {}".format(self.actions_done))
                 self.history[p_index][self.round][self.round_raises][action_index] = 1
-                p_calls += 1
-                self.round_raises += 1
                 self.calls[p_index] += 1
+                self.round_raises += 1
                 self.actions_done.append('Call')
 
             # Raise
             elif action_value == 2:
                 self.history[p_index][self.round][self.round_raises][action_index] = 1
-                p_raises += 1
                 self.raises[p_index] += 1
                 self.overall_raises[p_index] += 1
                 self.round_raises += 1
@@ -207,6 +201,9 @@ class Env:
                     self.public_card_index = self.deck.pick_up().rank
                     self.specific_cards[p_index][(self.round + 1)][self.public_card_index] = 1
                     self.specific_cards[o_index][(self.round + 1)][self.public_card_index] = 1
+                    # print("This the new state:")
+                    # print("Player{} - {}".format(p_index, self.specific_cards[p_index][1]))
+                    # print("Player{} - {}".format(o_index, self.specific_cards[o_index][1]))
 
                     self.p_card_revealed = True
 
@@ -242,21 +239,21 @@ class Env:
                 # Player has folded: Reward is at least zero
                 if action_value == 0:
                     if self.round == 0:
-                        if p_raises > 0:
-                            self.reward[p_index] = p_raises * (-1)
-                            self.reward[o_index] = p_raises
+                        if self.raises[p_index] > 0:
+                            self.reward[p_index] = self.raises[p_index] * (-1)
+                            self.reward[o_index] = self.raises[p_index]
                             self.reward_made_index = 2
                         else:
                             self.reward[p_index] = 0
                             self.reward[o_index] = 0
                             self.reward_made_index = 3
                     elif self.round == 1:
-                        if p_raises > 0:
-                            self.reward[p_index] += p_raises
+                        if self.raises[p_index] > 0:
+                            self.reward[p_index] += self.raises[p_index]
                             self.reward[o_index] = self.reward[p_index]
                             self.reward[p_index] *= -1
                             self.reward_made_index = 4
-                        elif p_raises == 0:
+                        elif self.raises[p_index] == 0:
                             self.reward[o_index] = self.reward[p_index]
                             self.reward[p_index] *= (-1)
                             self.reward_made_index = 5
@@ -297,6 +294,9 @@ class Env:
                         elif np.argmax(p_cards) == np.argmax(o_cards):
                             # Draw
                             self.reward = np.zeros(2)
+                        p_cards[self.public_card_index] = 1
+                        o_cards[self.public_card_index] = 1
+
                     if abs(self.reward[p_index]) - abs(self.reward[o_index]) != 0:
                         print("ELSE: p_index: {}, o_index: {}".format(self.reward[p_index], self.reward[o_index]))
 

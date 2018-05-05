@@ -7,6 +7,7 @@ import utils.replay_buffer as ReplayBuffer
 import numpy as np
 from keras.callbacks import TensorBoard
 import random
+import time
 
 
 class Agent:
@@ -71,12 +72,18 @@ class Agent:
 
         :return:
         """
-        input_ = Input(shape=self.s_dim, name='input')
-        hidden = Dense(self.n_hidden, activation='relu')(input_)
-        out = Dense(3, activation='sigmoid')(hidden)
-
-        model = Model(inputs=input_, outputs=out, name="br-model")
-        model.compile(loss='mean_squared_error', optimizer=SGD(lr=self.lr_br), metrics={self.name: 'categorical_accuracy'})
+        # input_ = Input(shape=self.s_dim, name='input')
+        # hidden = Dense(self.n_hidden, activation='relu')(input_)
+        # out = Dense(3, activation='softmax')(hidden)
+        #
+        # model = Model(inputs=input_, outputs=out, name="br-model")
+        # model.compile(loss='mean_squared_error', optimizer=SGD(lr=self.lr_br), metrics=['accuracy'])
+        model = Sequential()
+        model.add(Dense(self.n_hidden, activation='relu', input_dim=int(self.s_dim[1:][0])))
+        model.add(Dense(3, activation='softmax'))
+        model.compile(optimizer=SGD(lr=self.lr_br),
+                      loss='mse',
+                      metrics=['accuracy'])
         return model
 
     def _build_avg_response_model(self):
@@ -85,12 +92,18 @@ class Agent:
 
         :return:
         """
-        input_ = Input(shape=self.s_dim, name='input')
-        hidden = Dense(self.n_hidden, activation='relu')(input_)
-        out = Dense(3, activation='sigmoid')(hidden)
-
-        model = Model(inputs=input_, outputs=out, name="ar-model")
-        model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics=['accuracy'])
+        # input_ = Input(shape=self.s_dim, name='input')
+        # hidden = Dense(self.n_hidden, activation='relu')(input_)
+        # out = Dense(3, activation='softmax')(hidden)
+        #
+        # model = Model(inputs=input_, outputs=out, name="ar-model")
+        # model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics=['accuracy'])
+        model = Sequential()
+        model.add(Dense(self.n_hidden, activation='relu', input_dim=int(self.s_dim[1:][0])))
+        model.add(Dense(3, activation='softmax'))
+        model.compile(optimizer=SGD(lr=self.lr_ar),
+                      loss='categorical_crossentropy',
+                      metrics=['accuracy'])
         return model
 
     def remember_by_strategy(self, state, action, reward, nextstate, terminal, is_avg_stratey):
@@ -110,6 +123,7 @@ class Agent:
                 return self.best_response_model.predict(state), False
             else:
                 return np.random.rand(1, 3), False
+        # return np.random.rand(1, 3), False
 
     def update_strategy(self):
         self.update_best_response_network()
@@ -134,9 +148,9 @@ class Agent:
 
                 target_f = self.target_br_model.predict(s_batch[k])
 
-                target_f[0][0][np.argmax(a_batch[k])] = target
+                target_f[0][np.argmax(a_batch[k])] = target
 
-                self.best_response_model.fit(s_batch[k], target_f, verbose=0, callbacks=[self.tensorboard_br])
+                self.best_response_model.fit(s_batch[k], target_f, epochs=2, verbose=0, callbacks=[self.tensorboard_br])
 
                 # update target network every 300 steps
                 self.target_br_model_update_count += 1
@@ -152,9 +166,9 @@ class Agent:
         """
 
         if self._sl_memory.size() > self.minibatch_size:
-            s_batch, a_batch, _, _, _ = self._sl_memory.sample_batch(self.minibatch_size)
+            s_batch, a_batch, _, _, _ = self._sl_memory.reservoir_sample(self.minibatch_size)
             for k in range(int(self.minibatch_size)):
-                self.avg_strategy_model.fit(s_batch[k], a_batch[k], verbose=0, callbacks=[self.tensorboard_sl])
+                self.avg_strategy_model.fit(s_batch[k], a_batch[k], epochs=2, verbose=0, callbacks=[self.tensorboard_sl])
 
     def update_br_target_network(self):
         self.target_br_model.set_weights(self.best_response_model.get_weights())
