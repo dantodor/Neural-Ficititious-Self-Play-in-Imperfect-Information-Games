@@ -4,6 +4,7 @@ import logging
 import deck
 import numpy as np
 import ConfigParser
+import random
 
 actions_done = []
 actions_done.append('Call')
@@ -11,8 +12,18 @@ actions_done.append('Raise')
 
 action_value = 2
 
-if len(actions_done) == 2 and actions_done[0] == 'Call' and actions_done[1] == 'Raise' \
-        and action_value == 2:
-    action_value = 1
+class b_response():
+    def predict(self, state):
+        return state * 2
 
-print (action_value)
+class avg_response():
+    def predict(self, state):
+        return state*2
+
+state = 0
+
+eta = 0.1
+if random.random() > eta:
+    b_response.predict(state)
+else:
+    avg_response.predict(state)
