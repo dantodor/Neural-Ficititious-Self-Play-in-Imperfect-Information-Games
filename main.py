@@ -17,6 +17,49 @@ log = logging.getLogger('')
 Config = ConfigParser.ConfigParser()
 Config.read("./config.ini")
 
+def train(env, player1, player2):
+    eta = float(Config.get('Agent', 'Eta'))
+    players = [player1, player2]
+
+    for i in range(int(Config.get('Common', 'Episodes'))):
+        # Set dealer, reset env and pass dealer to it
+        dealer = random.randint(0, 1)
+        env.reset(dealer)
+
+        lhand = 1 if dealer == 0 else 0
+        policy = np.array(['', ''])
+        # Set policies sigma
+        if random.random() > eta:
+            policy[dealer] = 'avg'
+        else:
+            policy[dealer] = 'br'
+        if random.random() > eta:
+            policy[lhand] = 'avg'
+        else:
+            policy[lhand] = 'br'
+
+        # Observe initial state for dealer
+        d_s = env.get_state(dealer)[3]
+
+        terminated = False
+        first_round = True
+        while not terminated:
+            actual_round = env.round_index
+            if first_round:
+                d_t = players[dealer].play(policy[dealer], dealer, d_s)
+                first_round = False
+            else:
+                d_t = players[dealer].play(policy[dealer], dealer)
+            l_t = players[lhand].play(policy[lhand], lhand)
+            if actual_round == env.round_index and not d_t:
+                d_t = players[dealer].play(policy[dealer], dealer)
+            if d_t and l_t:
+                terminated = True
+        if i > 1000:
+            print("Exploitability: {}".format(players[0].average_payoff_br() + players[1].average_payoff_br()))
+
+
+
 
 def fsp(sess, env, args, player1, player2):
 
@@ -26,18 +69,16 @@ def fsp(sess, env, args, player1, player2):
     dealer = random.randint(0, 1)
     n = 1 if dealer == 0 else 0
 
+    reward_0 = 0
+    reward_1 = 0
 
+    counter = 0
     for i in range(int(Config.get('Common', 'MaxEpisodes'))):
-        # Exploitability
-        R1 = 0
-        R2 = 0
 
         steps_0 = 0
         steps_1 = 0
         actions = np.zeros((2, 3))
         for j in range(int(Config.get('Common', 'Episodes'))):
-
-            env.reset()
 
             # Toggle dealer
             if dealer == 0:
@@ -46,8 +87,7 @@ def fsp(sess, env, args, player1, player2):
             else:
                 dealer = 0
                 n = 1
-            reward_0 = 0
-            reward_1 = 0
+            env.reset(dealer)
 
             # Pass init state to players
             d_s2 = env.get_state(dealer)[0]
@@ -67,17 +107,17 @@ def fsp(sess, env, args, player1, player2):
                     d_a_br = players[dealer].act_best_response(d_s2)
                     d_a_avgr = players[dealer].act_average_response(d_s2)
                     # Compute convex combination of predictions
-                    d_a_mix = players[dealer].mixed_strategy(d_a_br, d_a_avgr)
+                    # d_a_mix = players[dealer].mixed_strategy(d_a_br, d_a_avgr)
                     if np.random.rand(1) > eta:
                         env.step(d_a_avgr, dealer)
+                        # players[dealer].remember_best_response(d_s2, d_a_mix)
                     else:
                         env.step(d_a_br, dealer)
                         players[dealer].remember_best_response(d_s2, d_a_br)
                     steps_0 += 1 if dealer == 0 else 0
                     steps_1 += 1 if dealer == 1 else 0
 
-                    if not first_round:
-                        actions[dealer][np.argmax(d_a_mix)] += 1
+                    actions[dealer][np.argmax(d_a_avgr)] += 1
 
                 # NOT DEALER
                 # N get's new state
@@ -91,15 +131,16 @@ def fsp(sess, env, args, player1, player2):
                 if not n_t:
                     n_a_br = players[n].act_best_response(n_s2)
                     n_a_avgr = players[n].act_average_response(n_s2)
-                    n_a_mix = players[n].mixed_strategy(n_a_br, n_a_avgr)
+                    # n_a_mix = players[n].mixed_strategy(n_a_br, n_a_avgr)
                     if np.random.rand(1) > eta:
                         env.step(n_a_avgr, n)
+                        # players[n].remember_best_response(n_s2, n_a_mix)
                     else:
                         env.step(n_a_br, n)
                         players[n].remember_best_response(n_s2, n_a_br)
                     steps_0 += 1 if n == 0 else 0
                     steps_1 += 1 if n == 1 else 0
-                    actions[n][np.argmax(n_a_mix)] += 1
+                    actions[n][np.argmax(n_a_avgr)] += 1
 
                 # DEALER
                 # Dealer get's new State after N played as well
@@ -113,13 +154,14 @@ def fsp(sess, env, args, player1, player2):
                     d_a_br = players[dealer].act_best_response(d_s2)
                     d_a_avgr = players[dealer].act_average_response(d_s2)
                     # Compute convex combination of predictions
-                    d_a_mix = players[dealer].mixed_strategy(d_a_br, d_a_avgr)
+                    # d_a_mix = players[dealer].mixed_strategy(d_a_br, d_a_avgr)
                     if np.random.rand(1) > eta:
                         env.step(d_a_avgr, dealer)
+                        # players[dealer].remember_best_response(d_s2, d_a_mix)
                     else:
                         env.step(d_a_br, dealer)
                         players[dealer].remember_best_response(d_s2, d_a_br)
-                    actions[dealer][np.argmax(d_a_mix)] += 1
+                    actions[dealer][np.argmax(d_a_avgr)] += 1
 
                     steps_0 += 1 if dealer == 0 else 0
                     steps_1 += 1 if dealer == 1 else 0
@@ -142,51 +184,26 @@ def fsp(sess, env, args, player1, player2):
                     reward_0 += n_r if n == 0 else d_r
                     reward_1 += n_r if n == 1 else d_r
 
-        for player in players:
-            player.update_strategy()
+                for player in players:
+                    player.update_strategy()
+        counter += 1
+        # players[0].update_strategy()
 
-        # measure exploitability
-        # print("Begin Meassuring...")
-        # counter = 0
-        # term = False
-        # while not term:
-        #     counter += 1
-        #     if counter > 300:
-        #         term = True
-        #     env.reset()
-        #     s = env.get_state(0)[0]
-        #     a = players[0].act_average_response(s)
-        #     env.step(a, 0)
-        #     s, a, r, t = env.get_state(1)
-        #     if not t:
-        #         a = players[1].act_best_response(s)
-        #         env.step(a, 1)
-        #         s, a, r, t = env.get_state(0)
-        #         if not t:
-        #             a = players[0].act_average_response(s)
-        #             R1 = np.max(a)
-        #             term = True
-        # if counter > 300:
-        #     print("Not enough computational budget. Skipping meassuring")
-        #     while not term:
-        #         env.reset()
-        #         s = env.get_state(1)[0]
-        #         a = players[0].act_average_response(s)
-        #         env.step(a, 1)
-        #         s, a, r, t = env.get_state(0)
-        #         if not t:
-        #             a = players[0].act_best_response(s)
-        #             R2 = np.max(a)
-        #             term = True
-        # print("Meassuring endet.")
-
-        # print("======== Exploitability of {} ========".format(R1+R2))
         # print("Player0 got {} reward with Folds: {}, Calls: {}, Raises: {}".format(reward_0, actions[0][0], actions[0][1], actions[0][2]))
         # print(
         #     "Player1 got {} reward with Folds: {}, Calls: {}, Raises: {}".format(reward_1, actions[1][0], actions[1][1],
         #                                                                          actions[1][2]))
-        reward_0 = 0
-        reward_1 = 0
+        # reward_0 = 0
+        # reward_1 = 0
+        # print("Player0 total reward: {}".format(reward_0))
+        # print("Player1 total reward: {}".format(reward_1))
+
+        if counter % 100 == 0:
+            print("=== EXPLOITABILITY - {} ===".format(players[0].average_payoff_br() + players[1].average_payoff_br()))
+            print("Player0 got {} reward with Folds: {}, Calls: {}, Raises: {}".format(reward_0, actions[0][0], actions[0][1], actions[0][2]))
+            print(
+                "Player1 got {} reward with Folds: {}, Calls: {}, Raises: {}".format(reward_1, actions[1][0], actions[1][1],
+                                                                                     actions[1][2]))
 
 
 def human_interaction(sess, env, args, player1):
@@ -304,8 +321,8 @@ def main(args):
         action_dim = env.action_space
 
         # initialize players
-        player1 = agent.Agent(sess, state_dim, action_dim, 'Player0')
-        player2 = agent.Agent(sess, state_dim, action_dim, 'Player1')
+        player1 = agent.Agent(sess, state_dim, action_dim, 'Player0', env)
+        player2 = agent.Agent(sess, state_dim, action_dim, 'Player1', env)
 
         # initialize tensorflow variables
         sess.run(tf.global_variables_initializer())
@@ -314,7 +331,8 @@ def main(args):
         if args['human'] is True:
             human_interaction(sess, env, args, player1)
         else:
-            fsp(sess, env, args, player1, player2)
+            # fsp(sess, env, args, player1, player2)
+            train(env, player1, player2)
 
 
 if __name__ == '__main__':

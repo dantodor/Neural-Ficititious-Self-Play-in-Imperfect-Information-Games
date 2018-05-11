@@ -32,6 +32,9 @@ class Env:
         # Init cards vector
         self.cards = []
 
+        # Who is dealer? Important for blinds.
+        self.dealer = 0
+
         # Init game variables
         self.specific_cards = np.zeros((self.player_count, self.max_rounds, (self.decksize / self.suits)))
         self.round = 0
@@ -49,6 +52,7 @@ class Env:
         # Init specific state
         self.history = np.zeros((self.player_count, self.max_rounds, self.max_raises, self._action_space))
 
+        self.s = np.array([[np.zeros(30)], [np.zeros(30)]])
         # DEBUG
         # self.test = 0
 
@@ -69,10 +73,19 @@ class Env:
         s = np.zeros((1, len(s)))
         return s.shape
 
-    def reset(self):
+    def reset(self, dealer):
+        self.dealer = dealer
+        n = 1 if dealer == 0 else 0
+        # Dealer has to set small blind, n_dealer has to set big blind
+        self.overall_raises = np.zeros(self.player_count)
+        self.overall_raises[dealer] += 0.5
+        self.overall_raises[n] += 1
+
         # Re-init deck as Object of type deck
         self.deck = deck.Deck(self.decksize)
         self.deck.shuffle()
+
+        self.s = np.array([[np.zeros(30)], [np.zeros(30)]])
 
         self.reward_made_index = 0
 
@@ -82,7 +95,6 @@ class Env:
         self.round = 0
         self.terminated = False
         self.raises = np.zeros(self.player_count)
-        self.overall_raises = np.zeros(self.player_count)
         self.public_card_index = 0
         self.reward = np.zeros(self.player_count)
         self.round_raises = 0
@@ -104,20 +116,17 @@ class Env:
     def get_state(self, p_index):
         cards = self.specific_cards[p_index]
         state = np.concatenate((self.history.flatten(), self.specific_cards[p_index].flatten()))
-        # TODO make it dynamic
-        state = np.reshape(state, (1, 30))
-        action = np.reshape(self.last_action[p_index], (1, 3))
+        action = self.last_action[p_index]
+
+        # Reshape to (1, 1, 3)
+        state = np.reshape(state, (1, 1, 30))
+        action = np.reshape(action, (1, 1, 3))
+
         if self.terminated:
-            if abs(self.reward[p_index]) - abs(self.reward[1 if p_index == 0 else 0]) != 0:
-                # print("Wo ist es: {}".format(self.reward_made_index))
-                print("Following happened after: {}".format(self.reward_made_index))
-                print("Player{} get reward: {} and full-reward is: {}".format(p_index, self.reward[p_index], self.reward))
-            # else:
-                # print("Worked with: {}".format(self.reward_made_index))
-            return state, action, self.reward[p_index], self.terminated
+            return self.s[p_index], action, self.reward[p_index], state, self.terminated
         else:
             # Return zero as reward because there is no
-            return state, action, 0, self.terminated
+            return self.s[p_index], action, 0, state, self.terminated
 
     def do_action(self, action, p_index):
 
@@ -145,6 +154,11 @@ class Env:
         elif action_value == 1:
             self.history[p_index][self.round][self.round_raises][0] = 1
             self.round_raises += 1
+            if len(self.actions_done) > 0 and self.actions_done[len(self.actions_done) - 1] == "Raise":
+                self.overall_raises[p_index] += 1
+            if self.round == 0 and len(self.actions_done) == 0:
+                # It's the Dealer, he has to double his small blind
+                self.overall_raises[p_index] += 0.5
             self.actions_done.append('Call')
             return False
 
@@ -152,8 +166,14 @@ class Env:
         elif action_value == 2:
             self.history[p_index][self.round][self.round_raises][1] = 1
             self.raises[p_index] += 1
-            self.overall_raises[p_index] += 1
+            if len(self.actions_done) > 0 and self.actions_done[len(self.actions_done) - 1] == "Raise":
+                self.overall_raises[p_index] += 2
+            else:
+                self.overall_raises[p_index] += 1
             self.round_raises += 1
+            if self.round == 0 and len(self.actions_done) == 0:
+                # It's the Dealer, he has to double his small blind
+                self.overall_raises[p_index] += 0.5
             self.actions_done.append('Raise')
             return False
 
@@ -176,6 +196,10 @@ class Env:
         :param p_index:
         :return:
         """
+
+        cards = self.specific_cards[p_index]
+        state = np.concatenate((self.history.flatten(), self.specific_cards[p_index].flatten()))
+        self.s[p_index][0][:] = state
 
         if not self.terminated:
             # Deconstruct raises, calls, round etc
@@ -202,8 +226,10 @@ class Env:
                     # print("Player{} - {}".format(o_index, self.specific_cards[o_index][1]))
 
                     # Determine reward from first round
-                    self.reward[p_index] = np.sum(self.overall_raises)
-                    self.reward[o_index] = np.sum(self.overall_raises)
+                    # if p_index == self.dealer:
+                    #     self.reward[p_index] = self.overall_raises
+                    #
+                    # self.reward[o_index] = np.sum(self.overall_raises)
                     self.round = 1
 
                     # Set raises and calls to zero - in new round nothing happened
@@ -224,21 +250,9 @@ class Env:
             if self.terminated:
                 # Player has folded: Reward is at least zero
                 if np.argmax(action) == 0:
-                    if self.round == 0:
-                        if self.raises[p_index] > 0:
-                            self.reward[p_index] = self.raises[p_index] * (-1)
-                            self.reward[o_index] = self.raises[p_index]
-                        else:
-                            self.reward[p_index] = 0
-                            self.reward[o_index] = 0
-                    elif self.round == 1:
-                        if self.raises[p_index] > 0:
-                            self.reward[p_index] += self.raises[p_index]
-                            self.reward[o_index] = self.reward[p_index]
-                            self.reward[p_index] *= -1
-                        elif self.raises[p_index] == 0:
-                            self.reward[o_index] = self.reward[p_index]
-                            self.reward[p_index] *= (-1)
+
+                    self.reward[p_index] = self.overall_raises[p_index] * (-1)
+                    self.reward[o_index] = self.overall_raises[p_index]
 
                     if abs(self.reward[p_index]) - abs(self.reward[o_index]) != 0:
                         print("p-index: {}, o_index: {}".format(self.reward[p_index], self.reward[o_index]))
@@ -250,8 +264,8 @@ class Env:
                     o_cards = self.specific_cards[o_index][self.round]
 
                     # Compute total reward
-                    self.reward[p_index] = np.sum(self.overall_raises)
-                    self.reward[o_index] = np.sum(self.overall_raises)
+                    self.reward[p_index] = self.overall_raises[o_index]
+                    self.reward[o_index] = self.overall_raises[p_index]
 
                     # Check if one player has same card as public card
                     # If just one index has value 1, the player has same rank
@@ -264,8 +278,10 @@ class Env:
                         self.reward[p_index] *= -1
                     else:
                         # No player has match with public card, remove public card
-                        p_cards[self.public_card_index] = 0
-                        o_cards[self.public_card_index] = 0
+                        # if round == 1:
+                        if self.round == 1:
+                            p_cards[self.public_card_index] = 0
+                            o_cards[self.public_card_index] = 0
                         if np.argmax(p_cards) < np.argmax(o_cards):
                             # Player wins
                             self.reward[o_index] *= -1
@@ -277,8 +293,9 @@ class Env:
                             self.reward = np.zeros(2)
                         else:
                             print("SOMETHING ELSE HAPPENED"*4)
-                        p_cards[self.public_card_index] = 1
-                        o_cards[self.public_card_index] = 1
+                        if self.round == 1:
+                            p_cards[self.public_card_index] = 1
+                            o_cards[self.public_card_index] = 1
                 # DEBUG
                 # self.test += 1
                 # print("===== TEST {} - ROUND {} =====".format(self.test, self.round))
@@ -290,5 +307,6 @@ class Env:
                 if self.reward[p_index] + self.reward[o_index] != 0:
                     print("FUCK MAN")
         else:
+            # pass
             print("Player{} tried to step while self.terminated is {}".format(p_index, self.terminated))
             # time.sleep(5)
