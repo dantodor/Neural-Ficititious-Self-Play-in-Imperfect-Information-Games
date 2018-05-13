@@ -1,14 +1,17 @@
 from keras.models import Sequential
 from keras.models import Model
 from keras.layers import Dense, Input
-from keras.optimizers import Adam
+from keras.optimizers import Adam, SGD
 import ConfigParser
 import utils.replay_buffer as ReplayBuffer
 import numpy as np
 from keras.callbacks import TensorBoard
 import random
 import keras.backend as K
+import tensorflow as tf
 import time
+import math
+from keras.layers.advanced_activations import LeakyReLU
 
 
 class Agent:
@@ -39,8 +42,11 @@ class Agent:
         self.epsilon_decay = float(self.config.get('Agent', 'EpsilonDecay'))
         self.gamma = float(self.config.get('Agent', 'Gamma'))
         self.omega = float(self.config.get('Agent', 'Omega'))
+        self.adam = SGD(lr=0.05)
+
 
         self.iteration = 0
+        self.temp = (1 + 0.02 * np.sqrt(self.iteration))**(-1)
 
         # mixed anticipatory parameter
         self.eta = float(self.config.get('Agent', 'Eta'))
@@ -66,58 +72,37 @@ class Agent:
 
         # build supervised learning model
         # self.average_response_model = self._build_avg_response_model()
+        self.actions = np.zeros(3)
+
+        self.played = 0
+        self.reward = 0
+        self.test_reward = 0
+
+        self.game_step = 0
 
         # tensorborad
         self.tensorboard_br = TensorBoard(log_dir='./logs/'+self.name+'rl', histogram_freq=0,
-                                       write_graph=False, write_images=True)
+                                          write_graph=False, write_images=True)
 
         self.tensorboard_sl = TensorBoard(log_dir='./logs/'+self.name+'sl', histogram_freq=0,
-                                       write_graph=False, write_images=True)
-
+                                          write_graph=False, write_images=True)
 
     def _build_best_response_model(self):
-        """
-        Initiates a DQN Agent which handles the reinforcement part of the fsp
-        algorithm.
-
-        :return:
-        """
-
-        def expl(y_true, y_pred):
-            return K.mean(y_pred)
-
         input_ = Input(shape=self.s_dim, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
-        out = Dense(3, activation='softmax')(hidden)
+        out = Dense(3, activation='linear')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="br-model")
-        model.compile(loss='mean_squared_error', optimizer=Adam(lr=self.lr_br), metrics=['accuracy', expl])
-        # model = Sequential()
-        # model.add(Dense(self.n_hidden, activation='relu', input_dim=int(self.s_dim[1:][0])))
-        # model.add(Dense(3, activation='softmax'))
-        # model.compile(optimizer=SGD(lr=self.lr_br),
-        #               loss='mse',
-        #               metrics=['accuracy'])
+        model.compile(loss='mean_squared_error', optimizer=self.adam, metrics=['accuracy'])
         return model
 
     def _build_avg_response_model(self):
-        """
-        Average response network, which learns via stochastic gradient descent on loss.
-
-        :return:
-        """
         input_ = Input(shape=self.s_dim, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
         out = Dense(3, activation='softmax')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="ar-model")
-        model.compile(loss='categorical_crossentropy', optimizer=Adam(lr=self.lr_ar), metrics=['accuracy'])
-        # model = Sequential()
-        # model.add(Dense(self.n_hidden, activation='relu', input_dim=int(self.s_dim[1:][0])))
-        # model.add(Dense(3, activation='softmax'))
-        # model.compile(optimizer=SGD(lr=self.lr_ar),
-        #               loss='categorical_crossentropy',
-        #               metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=SGD(lr=self.lr_ar), metrics=['accuracy', 'crossentropy'])
         return model
 
     def remember_by_strategy(self, state, action, reward, nextstate, terminal, is_avg_stratey):
@@ -151,37 +136,92 @@ class Agent:
             return np.random.rand(1, 3)
 
     def act_average_response(self, state):
-        return self.avg_strategy_model.predict(state)
+        pred = self.avg_strategy_model.predict(state)
+        print(pred)
+        return pred
 
-    def play(self, policy, index, s=None):
-        if s is None:
+    def play(self, policy, index, s2=None):
+        if s2 is None:
             s, a, r, s2, t = self.env.get_state(index)
-            self.remember_for_rl(s, a, r, s2, t)
+            self.reward += r
+            if np.average(a) != 0:
+                self.remember_for_rl(s, a, r, s2, t)
+                self.game_step += 1
             if t:
                 return t
         else:  # because it's the initial state
             t = False
         if not t:
-            if policy == 'avg':
-                a = self.avg_strategy_model.predict(np.reshape(s, (1, 1, 30)))
+            if policy == 'a':
+                a = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
+                self.env.step(a, index)
+                self.played += 1
+            else:
+                a = self.best_response_model.predict(np.reshape(s2, (1, 1, 30)))
+                # Evaluating the boltzmann distribution
+                a_t = self.boltzmann(a)
+                self.env.step(a_t, index)
+                self.remember_best_response(s2, a_t)
+                self.played += 1
+        if self.game_step % 128 == 0:
+            self.update_strategy()
+        self.actions[np.argmax(a)] += 1
+        return t
+
+    def boltzmann(self, actions):
+        dist = np.zeros((1, 1, 3))
+        bottom = 0
+        for k in range(len(actions[0][0])):
+            bottom += np.exp(actions[0][0][k] / self.temp)
+        for k in range(len(actions[0][0])):
+            top = np.exp(actions[0][0][k] / self.temp)
+            dist[0][0][k] = top / bottom
+        return dist
+
+    def play_test(self, policy, index, s2=None):
+        if s2 is None:
+            s, a, r, s2, t = self.env.get_state(index)
+            self.test_reward += r
+            if t:
+                return t
+        else:  # because it's the initial state
+            t = False
+        if not t:
+            if policy == 'a':
+                a = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
                 self.env.step(a, index)
             else:
-                a = self.best_response_model.predict(np.reshape(s, (1, 1, 30)))
+                a = self.best_response_model.predict(np.reshape(s2, (1, 1, 30)))
                 self.env.step(a, index)
-                self.remember_best_response(s, a)
-        self.update_strategy()
         return t
+
+    @property
+    def play_test_get_reward(self):
+        return self.test_reward
+
+    def play_test_init(self):
+        self.test_reward = 0
 
     def update_strategy(self):
         self.update_avg_response_network()
         self.update_best_response_network()
+
+    def sampled_actions(self):
+        print("{} played {} times: Folds: {}, Calls: {}, Raises: {} - Reward: {}".format(self.name, self.played,
+                                                                                         self.actions[0], self.actions[1],
+                                                                                         self.actions[2], self.reward))
+        self.actions = np.zeros(3)
+        self.played = 0
 
     def average_payoff_br(self):
         if self._rl_memory.size() > self.minibatch_size:
             s_batch, _, _, _, _ = self._rl_memory.sample_batch(self.minibatch_size)
             expl = []
             for k in range(int(len(s_batch))):
-                expl.append(np.max(self.best_response_model.predict(s_batch[k])))
+                expl.append(np.max(self.best_response_model.predict(np.reshape(s_batch[k], (1, 1, 30)))))
+            # if np.average(expl) > 1:
+            #     print self.best_response_model.predict(s_batch)
+            #     time.sleep(60)
             return np.average(expl)
 
     def update_best_response_network(self):
@@ -194,23 +234,40 @@ class Agent:
             self.iteration += 1
             target = []
             s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+
             for k in range(int(self.minibatch_size)):
                 if t_batch[k] is True:
                     target.append(r_batch[k])
                 else:
-                    target.append(r_batch[k] + self.gamma * np.amax(self.target_br_model.predict(np.reshape(s2_batch[k], (1, 1, 30)))))
+                    Q_next = np.max(self.target_br_model.predict(np.reshape(s2_batch[k], (1, 1, 30))))
+                    target_ = r_batch[k] * self.gamma * Q_next
+                    target.append(target_)
 
             target_f = self.best_response_model.predict(s_batch)
+            # say = np.zeros(3)
+            # for k in range(len(target_f)):
+            #     say[np.argmax(target_f[k])] += 1
+            #
+            # print("{} says: {} folds, {} calls, {} raises".format(self.name, say[0], say[1], say[2]))
+
+            # test = np.zeros((3, 128))
+            # for k in range(len(target_f)):
+            #     test[0][k] = target_f[k][0][0]
+            #     test[1][k] = target_f[k][0][1]
+            #     test[2][k] = target_f[k][0][2]
+            # print("AVG Folds: {}, Calls: {}, Raises: {}".format(np.average(test[0]), np.average(test[1]), np.average(test[2])))
 
             for k in range(self.minibatch_size):
                 target_f[k][0][np.argmax(a_batch[k])] = target[k]
 
             self.best_response_model.fit(s_batch, target_f, epochs=2, verbose=0, callbacks=[self.tensorboard_br])
             self.iteration += 1
+            self.temp = (1 + 0.02 * np.sqrt(self.iteration)) ** (-1)
             self.update_br_target_network()
 
-            if self.epsilon > self.epsilon_min:
-                self.epsilon = self.epsilon ** 1/self.iteration
+            K.set_value(self.adam.lr, 0.05 / (1 + 0.003 * math.sqrt(self.iteration)))
+
+            self.epsilon = self.epsilon ** 1/self.iteration
 
     def update_avg_response_network(self):
         """
@@ -218,8 +275,13 @@ class Agent:
         """
 
         if self._sl_memory.size() > self.minibatch_size:
-            s_batch, a_batch, _, _, _ = self._sl_memory.reservoir_sample(self.minibatch_size)
-            self.avg_strategy_model.fit(s_batch, a_batch, epochs=2, verbose=0, callbacks=[self.tensorboard_sl])
+            s_batch, a_batch, _, _, _ = self._sl_memory.sample_batch(self.minibatch_size)
+            # print("="*30)
+            # print("a batch:")
+            # print(np.reshape(a_batch, (128, 1, 3)))
+            # print("control c")
+            # time.sleep(10)
+            self.avg_strategy_model.fit(s_batch, np.reshape(a_batch, (128, 1, 3)), epochs=2, verbose=0, callbacks=[self.tensorboard_sl])
 
     def update_br_target_network(self):
         # Update target model network softly
@@ -229,3 +291,9 @@ class Agent:
         if self.target_br_model_update_count % 300 == 0:
             self.target_br_model.set_weights(self.best_response_model.get_weights())
         self.target_br_model_update_count += 1
+
+
+
+
+
+

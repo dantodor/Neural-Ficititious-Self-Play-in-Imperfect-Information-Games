@@ -9,6 +9,7 @@ import ConfigParser
 import random
 import logging
 import time
+import matplotlib.pyplot as plt
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 log = logging.getLogger('')
 
@@ -17,46 +18,110 @@ log = logging.getLogger('')
 Config = ConfigParser.ConfigParser()
 Config.read("./config.ini")
 
+
 def train(env, player1, player2):
     eta = float(Config.get('Agent', 'Eta'))
     players = [player1, player2]
+    dealer = random.randint(0, 1)
+    plotter = []
 
     for i in range(int(Config.get('Common', 'Episodes'))):
+        if dealer == 0:
+            dealer = 1
+        else:
+            dealer = 0
         # Set dealer, reset env and pass dealer to it
-        dealer = random.randint(0, 1)
         env.reset(dealer)
 
         lhand = 1 if dealer == 0 else 0
         policy = np.array(['', ''])
         # Set policies sigma
         if random.random() > eta:
-            policy[dealer] = 'avg'
+            policy[dealer] = 'a'
         else:
-            policy[dealer] = 'br'
+            policy[dealer] = 'b'
         if random.random() > eta:
-            policy[lhand] = 'avg'
+            policy[lhand] = 'a'
         else:
-            policy[lhand] = 'br'
+            policy[lhand] = 'b'
 
         # Observe initial state for dealer
         d_s = env.get_state(dealer)[3]
 
         terminated = False
         first_round = True
+        d_t = False
+        l_t = False
+
         while not terminated:
             actual_round = env.round_index
-            if first_round:
+            if first_round and not d_t:
                 d_t = players[dealer].play(policy[dealer], dealer, d_s)
                 first_round = False
-            else:
+            elif not first_round and not d_t:
                 d_t = players[dealer].play(policy[dealer], dealer)
-            l_t = players[lhand].play(policy[lhand], lhand)
+            if not l_t:
+                l_t = players[lhand].play(policy[lhand], lhand)
             if actual_round == env.round_index and not d_t:
                 d_t = players[dealer].play(policy[dealer], dealer)
             if d_t and l_t:
                 terminated = True
-        if i > 1000:
-            print("Exploitability: {}".format(players[0].average_payoff_br() + players[1].average_payoff_br()))
+
+        # if i > 150:
+        #     print("Exploitability: {}".format(players[0].average_payoff_br() + players[1].average_payoff_br()))
+
+        # if i % 50 == 0:
+        #     print("================ Stats ==================")
+        #     for player in players:
+        #         player.sampled_actions()
+
+        # Measure exploitability
+        if i % 20 == 0:
+            expl = []
+            dealer = random.randint(0, 1)
+            for i in range(int(Config.get('Common', 'TestEpisodes'))):
+                if dealer == 0:
+                    dealer = 1
+                else:
+                    dealer = 0
+                for player in players:
+                    player.play_test_init()
+                env.reset(dealer)
+                lhand = 1 if dealer == 0 else 0
+                policy[dealer] = 'b'
+                policy[lhand] = 'a'
+                d_s = env.get_state(dealer)[3]
+
+                terminated = False
+                first_round = True
+                d_t = False
+                l_t = False
+
+                while not terminated:
+                    actual_round = env.round_index
+                    if first_round and not d_t:
+                        d_t = players[dealer].play_test(policy[dealer], dealer, d_s)
+                        first_round = False
+                    elif not first_round and not d_t:
+                        d_t = players[dealer].play_test(policy[dealer], dealer)
+                    if not l_t:
+                        l_t = players[lhand].play_test(policy[lhand], lhand)
+                    if actual_round == env.round_index and not d_t:
+                        d_t = players[dealer].play_test(policy[dealer], dealer)
+                    if d_t and l_t:
+                        terminated = True
+                        a = players[dealer].play_test_get_reward
+                        expl.append(a)
+            print("===============================================================")
+            print("----------------- Exploitability: {} ------------------------".format(np.average(expl)))
+            plotter.append(np.average(expl))
+            plt.plot(plotter)
+            plt.show()
+        if i % 20 == 0:
+            print("JJUUUUUUNGE")
+            plt.plot(plotter)
+            plt.show()
+
 
 
 

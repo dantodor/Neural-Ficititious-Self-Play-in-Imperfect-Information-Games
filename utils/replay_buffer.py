@@ -45,7 +45,6 @@ class ReplayBuffer(object):
 
     def sample_batch(self, batch_size):
         batch = []
-        test = self.count
         if self.count < batch_size:
             batch = random.sample(self.buffer, self.count)
         else:
@@ -56,8 +55,7 @@ class ReplayBuffer(object):
         r_batch = np.array([_[2] for _ in batch])
         s2_batch = np.array([_[3] for _ in batch])
         t_batch = np.array([_[4] for _ in batch])
-        if self.count != test:
-            print("lol")
+
         return s_batch, a_batch, r_batch, s2_batch, t_batch
 
     def recent_batch(self, batch_size):
@@ -81,9 +79,9 @@ class ReplayBuffer(object):
     def reservoir_sample(self, batch_size):
         batch = list(itertools.islice(self.buffer, 0, batch_size))
         if self.count > batch_size:
-            for i in range(batch_size, len(self.buffer)):
+            for i in range(batch_size, (len(self.buffer) - 1)):
                 j = random.randrange(1, i + 1)
-                if j <= batch_size:
+                if j < batch_size:
                     batch[j] = self.buffer[i]
 
         s_batch = np.array([_[0] for _ in batch])

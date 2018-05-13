@@ -6,6 +6,7 @@ import numpy as np
 import ConfigParser
 import random
 from collections import deque
+import math
 
 class env:
     def __init__(self):
@@ -39,6 +40,12 @@ class player:
     def change_to_zeros(self):
         self.ones = np.zeros(30)
 
+    def test(self, lel):
+        if lel:
+            return True
+        print("Kp")
+        return False
+
     @property
     def stuff(self):
         return self.ones
@@ -47,18 +54,29 @@ class player:
         print(self.ones)
 
 
+def boltzmann(actions, temp):
+    dist = np.zeros(len(actions))
+    bottom = 0
+    for action in actions:
+        bottom += np.exp(action / temp)
 
+    for k in range(len(actions)):
+        top = np.exp(actions[k] / temp)
+        dist[k] = top / bottom
+
+    return dist
 
 if __name__ == '__main__':
-    env_ = env()
-    player1 = player(env_)
-    player2 = player(env_)
 
-    env_.add(player1.stuff)
-    env_.print_buffer()
-    player1.print()
-    player1.change_to_zeros()
-    env_.print_buffer()
-    player1.print()
+    test_q = np.array([0.0, -0.45, 0.23])
+    print(test_q)
+    t = 0.99
+    print("--------------------")
+    print(boltzmann(test_q, t))
+
+    print((1 + 0.02 * np.sqrt(100000))**(-1))
+
+
+
 
 

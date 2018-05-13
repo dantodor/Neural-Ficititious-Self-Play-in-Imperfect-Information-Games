@@ -304,6 +304,7 @@ class Env:
                 # print("{}".format(self.history[o_index]))
                 # print("REWARD => {}".format(abs(self.reward[p_index])))
                 # time.sleep(1)
+
                 if self.reward[p_index] + self.reward[o_index] != 0:
                     print("FUCK MAN")
         else:
