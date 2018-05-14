@@ -67,62 +67,59 @@ def train(env, player1, player2):
             if d_t and l_t:
                 terminated = True
 
-        # if i > 150:
-        #     print("Exploitability: {}".format(players[0].average_payoff_br() + players[1].average_payoff_br()))
+        if i > 150 and i % 500 == 0:
+            ex = players[0].average_payoff_br() + players[1].average_payoff_br()
+            # print("Exploitability: {}".format(ex))
+            plotter.append(ex)
 
-        # if i % 50 == 0:
-        #     print("================ Stats ==================")
-        #     for player in players:
-        #         player.sampled_actions()
+        if i % 50 == 0:
+            print("================ Stats ==================")
+            for player in players:
+                player.sampled_actions()
 
         # Measure exploitability
-        if i % 20 == 0:
-            expl = []
-            dealer = random.randint(0, 1)
-            for i in range(int(Config.get('Common', 'TestEpisodes'))):
-                if dealer == 0:
-                    dealer = 1
-                else:
-                    dealer = 0
-                for player in players:
-                    player.play_test_init()
-                env.reset(dealer)
-                lhand = 1 if dealer == 0 else 0
-                policy[dealer] = 'b'
-                policy[lhand] = 'a'
-                d_s = env.get_state(dealer)[3]
+        # if i % 20 == 0:
+        #     expl = []
+        #     dealer = random.randint(0, 1)
+        #     for i in range(int(Config.get('Common', 'TestEpisodes'))):
+        #         if dealer == 0:
+        #             dealer = 1
+        #         else:
+        #             dealer = 0
+        #         for player in players:
+        #             player.play_test_init()
+        #         env.reset(dealer)
+        #         lhand = 1 if dealer == 0 else 0
+        #         policy[dealer] = 'b'
+        #         policy[lhand] = 'a'
+        #         d_s = env.get_state(dealer)[3]
+        #
+        #         terminated = False
+        #         first_round = True
+        #         d_t = False
+        #         l_t = False
+        #
+        #         while not terminated:
+        #             actual_round = env.round_index
+        #             if first_round and not d_t:
+        #                 d_t = players[dealer].play_test(policy[dealer], dealer, d_s)
+        #                 first_round = False
+        #             elif not first_round and not d_t:
+        #                 d_t = players[dealer].play_test(policy[dealer], dealer)
+        #             if not l_t:
+        #                 l_t = players[lhand].play_test(policy[lhand], lhand)
+        #             if actual_round == env.round_index and not d_t:
+        #                 d_t = players[dealer].play_test(policy[dealer], dealer)
+        #             if d_t and l_t:
+        #                 terminated = True
+        #                 a = players[dealer].play_test_get_reward
+        #                 expl.append(a)
+        #     plotter.append(np.average(expl))
+        #     print("==== EXPLOITABILITY: {}".format(np.average(expl)))
 
-                terminated = False
-                first_round = True
-                d_t = False
-                l_t = False
-
-                while not terminated:
-                    actual_round = env.round_index
-                    if first_round and not d_t:
-                        d_t = players[dealer].play_test(policy[dealer], dealer, d_s)
-                        first_round = False
-                    elif not first_round and not d_t:
-                        d_t = players[dealer].play_test(policy[dealer], dealer)
-                    if not l_t:
-                        l_t = players[lhand].play_test(policy[lhand], lhand)
-                    if actual_round == env.round_index and not d_t:
-                        d_t = players[dealer].play_test(policy[dealer], dealer)
-                    if d_t and l_t:
-                        terminated = True
-                        a = players[dealer].play_test_get_reward
-                        expl.append(a)
-            print("===============================================================")
-            print("----------------- Exploitability: {} ------------------------".format(np.average(expl)))
-            plotter.append(np.average(expl))
-            plt.plot(plotter)
-            plt.show()
-        if i % 20 == 0:
-            print("JJUUUUUUNGE")
-            plt.plot(plotter)
-            plt.show()
-
-
+    plt.plot(plotter)
+    plt.show()
+    time.sleep(60)
 
 
 

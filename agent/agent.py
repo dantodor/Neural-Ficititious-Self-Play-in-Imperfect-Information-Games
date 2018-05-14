@@ -29,7 +29,7 @@ class Agent:
         self.config = ConfigParser.ConfigParser()
         self.config.read("./config.ini")
 
-        self.exploitability = []
+        self.exploitability = 0
         self.iteration = 0
 
         # init parameters
@@ -79,6 +79,8 @@ class Agent:
         self.test_reward = 0
 
         self.game_step = 0
+
+        self.avg_has_learned = False
 
         # tensorborad
         self.tensorboard_br = TensorBoard(log_dir='./logs/'+self.name+'rl', histogram_freq=0,
@@ -154,6 +156,9 @@ class Agent:
         if not t:
             if policy == 'a':
                 a = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
+                br = self.best_response_model.predict(np.reshape(s2, (1, 1, 30)))
+                br = self.boltzmann(br)
+                a = (1 - self.eta) * a + self.eta * br
                 self.env.step(a, index)
                 self.played += 1
             else:
@@ -163,6 +168,13 @@ class Agent:
                 self.env.step(a_t, index)
                 self.remember_best_response(s2, a_t)
                 self.played += 1
+            # avg = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
+            # br = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
+            # br = self.boltzmann(br)
+            # a = (1 - self.eta) * avg + self.eta * br
+            # self.env.step(a, index)
+            # self.played += 1
+            # self.remember_best_response(s2, a)
         if self.game_step % 128 == 0:
             self.update_strategy()
         self.actions[np.argmax(a)] += 1
@@ -211,18 +223,19 @@ class Agent:
                                                                                          self.actions[0], self.actions[1],
                                                                                          self.actions[2], self.reward))
         self.actions = np.zeros(3)
+
         self.played = 0
 
     def average_payoff_br(self):
-        if self._rl_memory.size() > self.minibatch_size:
-            s_batch, _, _, _, _ = self._rl_memory.sample_batch(self.minibatch_size)
-            expl = []
-            for k in range(int(len(s_batch))):
-                expl.append(np.max(self.best_response_model.predict(np.reshape(s_batch[k], (1, 1, 30)))))
+        # if self._rl_memory.size() > self.minibatch_size:
+        #     s_batch, _, _, _, _ = self._rl_memory.sample_batch(self.minibatch_size)
+        #     expl = []
+        #     for k in range(int(len(s_batch))):
+        #         expl.append(np.max(self.best_response_model.predict(np.reshape(s_batch[k], (1, 1, 30)))))
             # if np.average(expl) > 1:
             #     print self.best_response_model.predict(s_batch)
             #     time.sleep(60)
-            return np.average(expl)
+        return np.average(self.exploitability)
 
     def update_best_response_network(self):
         """
@@ -243,7 +256,13 @@ class Agent:
                     target_ = r_batch[k] * self.gamma * Q_next
                     target.append(target_)
 
+            test = []
             target_f = self.best_response_model.predict(s_batch)
+
+            for k in range(len(target_f)):
+                test.append(np.max(target_f[k]))
+
+            self.exploitability = np.average(test)
             # say = np.zeros(3)
             # for k in range(len(target_f)):
             #     say[np.argmax(target_f[k])] += 1
@@ -261,8 +280,11 @@ class Agent:
                 target_f[k][0][np.argmax(a_batch[k])] = target[k]
 
             self.best_response_model.fit(s_batch, target_f, epochs=2, verbose=0, callbacks=[self.tensorboard_br])
+
             self.iteration += 1
+
             self.temp = (1 + 0.02 * np.sqrt(self.iteration)) ** (-1)
+
             self.update_br_target_network()
 
             K.set_value(self.adam.lr, 0.05 / (1 + 0.003 * math.sqrt(self.iteration)))
@@ -276,11 +298,9 @@ class Agent:
 
         if self._sl_memory.size() > self.minibatch_size:
             s_batch, a_batch, _, _, _ = self._sl_memory.sample_batch(self.minibatch_size)
-            # print("="*30)
-            # print("a batch:")
-            # print(np.reshape(a_batch, (128, 1, 3)))
-            # print("control c")
-            # time.sleep(10)
+            if self.avg_has_learned is False:
+                print("{} adapts best response from now on.".format(self.name))
+                self.avg_has_learned = True
             self.avg_strategy_model.fit(s_batch, np.reshape(a_batch, (128, 1, 3)), epochs=2, verbose=0, callbacks=[self.tensorboard_sl])
 
     def update_br_target_network(self):
