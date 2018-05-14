@@ -304,6 +304,42 @@ class Env:
                 # print("{}".format(self.history[o_index]))
                 # print("REWARD => {}".format(abs(self.reward[p_index])))
                 # time.sleep(1)
+                # DEBUG
+                # cards_0 = self.specific_cards[p_index][self.round]
+                # cards_1 = self.specific_cards[o_index][self.round]
+                # winner = ''
+                # if self.reward[p_index] > self.reward[o_index]:
+                #     winner = 'Player' + str(p_index)
+                # elif self.reward[p_index] < self.reward[o_index]:
+                #     winner = 'Player' + str(o_index)
+                # else:
+                #     winner = 'Draw'
+                #
+                # cards_0_string = []
+                # for k in range(len(cards_0)):
+                #     if cards_0[k] == 1:
+                #         if k == 0:
+                #             cards_0_string.append('Ace')
+                #         elif k == 1:
+                #             cards_0_string.append('King')
+                #         elif k == 2:
+                #             cards_0_string.append('Queen')
+                #
+                # cards_1_string = []
+                # for k in range(len(cards_1)):
+                #     if cards_1[k] == 1:
+                #         if k == 0:
+                #             cards_1_string.append('Ace')
+                #         elif k == 1:
+                #             cards_1_string.append('King')
+                #         elif k == 2:
+                #             cards_1_string.append('Queen')
+                #
+                # print("="*30)
+                # print("Winner {} with {} and o_cards: {}".format(winner, cards_0_string, cards_1_string))
+                # print("Last action: {}".format(self.actions_done))
+                # time.sleep(1)
+
 
                 if self.reward[p_index] + self.reward[o_index] != 0:
                     print("FUCK MAN")

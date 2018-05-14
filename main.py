@@ -67,14 +67,17 @@ def train(env, player1, player2):
                 terminated = True
 
         if i > 150 and i % 100 == 0:
+            print("================ Stats ==================")
+            for player in players:
+                player.sampled_actions()
             ex = players[0].average_payoff_br() + players[1].average_payoff_br()
             print("Exploitability: {}".format(ex))
             plotter.append(ex)
 
-        if i % 50 == 0:
-            print("================ Stats ==================")
-            for player in players:
-                player.sampled_actions()
+        # if i % 50 == 0:
+        #     print("================ Stats ==================")
+        #     for player in players:
+        #         player.sampled_actions()
 
         # Measure exploitability
         # if i % 20 == 0:

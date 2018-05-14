@@ -88,12 +88,22 @@ class Agent:
                                           write_graph=False, write_images=True)
 
     def _build_best_response_model(self):
+        def huber_loss(a, b, in_keras=True):
+            error = a - b
+            quadratic_term = error * error / 2
+            linear_term = abs(error) - 1 / 2
+            use_linear_term = (abs(error) > 1.0)
+            if in_keras:
+                # Keras won't let us multiply floats by booleans, so we explicitly cast the booleans to floats
+                use_linear_term = K.cast(use_linear_term, 'float32')
+            return use_linear_term * linear_term + (1 - use_linear_term) * quadratic_term
+
         input_ = Input(shape=self.s_dim, name='input')
         hidden = Dense(self.n_hidden, activation='relu')(input_)
-        out = Dense(3, activation='linear')(hidden)
+        out = Dense(3, activation='relu')(hidden)
 
         model = Model(inputs=input_, outputs=out, name="br-model")
-        model.compile(loss='mean_squared_error', optimizer=self.sgd_br, metrics=['accuracy', 'mse'])
+        model.compile(loss=huber_loss, optimizer=self.sgd_br, metrics=['accuracy', 'mse'])
         return model
 
     def _build_avg_response_model(self):
