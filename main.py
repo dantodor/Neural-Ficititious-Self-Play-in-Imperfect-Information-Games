@@ -67,9 +67,9 @@ def train(env, player1, player2):
             if d_t and l_t:
                 terminated = True
 
-        if i > 150 and i % 500 == 0:
+        if i > 150 and i % 100 == 0:
             ex = players[0].average_payoff_br() + players[1].average_payoff_br()
-            # print("Exploitability: {}".format(ex))
+            print("Exploitability: {}".format(ex))
             plotter.append(ex)
 
         if i % 50 == 0:

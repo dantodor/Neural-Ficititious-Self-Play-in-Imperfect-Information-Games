@@ -133,13 +133,17 @@ class Agent:
 
     def act_best_response(self, state):
         if random.random() > self.epsilon:
-            return self.best_response_model.predict(state)
+            br = self.best_response_model.predict(state)
+            if br[0][0][0] == br[0][0][1] == br[0][0][2]:
+                print("TRUE")
+                return np.random.rand(1, 1, 3)
+            else:
+                return br
         else:
-            return np.random.rand(1, 3)
+            return np.random.rand(1, 1, 3)
 
     def act_average_response(self, state):
         pred = self.avg_strategy_model.predict(state)
-        print(pred)
         return pred
 
     def play(self, policy, index, s2=None):
@@ -156,25 +160,15 @@ class Agent:
         if not t:
             if policy == 'a':
                 a = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
-                br = self.best_response_model.predict(np.reshape(s2, (1, 1, 30)))
-                br = self.boltzmann(br)
-                a = (1 - self.eta) * a + self.eta * br
                 self.env.step(a, index)
                 self.played += 1
             else:
-                a = self.best_response_model.predict(np.reshape(s2, (1, 1, 30)))
-                # Evaluating the boltzmann distribution
-                a_t = self.boltzmann(a)
+                a_t = self.act_best_response(np.reshape(s2, (1, 1, 30)))
+                # Evaluating the boltzmann distribution over Q Values
+                a = self.boltzmann(a_t)
                 self.env.step(a_t, index)
                 self.remember_best_response(s2, a_t)
                 self.played += 1
-            # avg = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
-            # br = self.avg_strategy_model.predict(np.reshape(s2, (1, 1, 30)))
-            # br = self.boltzmann(br)
-            # a = (1 - self.eta) * avg + self.eta * br
-            # self.env.step(a, index)
-            # self.played += 1
-            # self.remember_best_response(s2, a)
         if self.game_step % 128 == 0:
             self.update_strategy()
         self.actions[np.argmax(a)] += 1
@@ -245,41 +239,37 @@ class Agent:
 
         if self._rl_memory.size() > self.minibatch_size:
             self.iteration += 1
-            target = []
             s_batch, a_batch, r_batch, s2_batch, t_batch = self._rl_memory.sample_batch(self.minibatch_size)
+
+            target = self.target_br_model.predict(s_batch)
+
+            # if self.iteration > 50:
+            #     print(target)
+
+            reward = []
 
             for k in range(int(self.minibatch_size)):
                 if t_batch[k] is True:
-                    target.append(r_batch[k])
+                    reward.append(r_batch[k])
                 else:
                     Q_next = np.max(self.target_br_model.predict(np.reshape(s2_batch[k], (1, 1, 30))))
                     target_ = r_batch[k] * self.gamma * Q_next
-                    target.append(target_)
+                    reward.append(target_)
 
-            test = []
-            target_f = self.best_response_model.predict(s_batch)
+            # Evaluate exploitability
+            expl = []
+            for k in range(len(target)):
+                expl.append(np.max(target[k]))
+            self.exploitability = np.average(expl)
 
-            for k in range(len(target_f)):
-                test.append(np.max(target_f[k]))
 
-            self.exploitability = np.average(test)
-            # say = np.zeros(3)
-            # for k in range(len(target_f)):
-            #     say[np.argmax(target_f[k])] += 1
-            #
-            # print("{} says: {} folds, {} calls, {} raises".format(self.name, say[0], say[1], say[2]))
+            for k in range(int(self.minibatch_size)):
+                # print("{} for action {} got reward: {}".format(self.name, np.argmax(a_batch[k]), reward[k]))
+                target[0][0][np.argmax(a_batch[k])] = reward[k]
 
-            # test = np.zeros((3, 128))
-            # for k in range(len(target_f)):
-            #     test[0][k] = target_f[k][0][0]
-            #     test[1][k] = target_f[k][0][1]
-            #     test[2][k] = target_f[k][0][2]
-            # print("AVG Folds: {}, Calls: {}, Raises: {}".format(np.average(test[0]), np.average(test[1]), np.average(test[2])))
 
-            for k in range(self.minibatch_size):
-                target_f[k][0][np.argmax(a_batch[k])] = target[k]
 
-            self.best_response_model.fit(s_batch, target_f, epochs=2, verbose=0, callbacks=[self.tensorboard_br])
+            self.best_response_model.fit(s_batch, target, epochs=2, verbose=0, callbacks=[self.tensorboard_br])
 
             self.iteration += 1
 
