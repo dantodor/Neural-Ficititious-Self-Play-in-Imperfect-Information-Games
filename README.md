@@ -1,8 +1,8 @@
 # Neuronal ficticous self-play
 >  NFSP angewendetn auf Leduc-poker von David Joos
 
-# Bachelor Thesis
-The whole Thesis is included in this project unter `/Hauptdatei.pdf` - it's written in german.
+### Bachelor Thesis
+The whole Thesis is included in this project under `/Hauptdatei.pdf` - it's written in german.
 
 ## Environment
 
