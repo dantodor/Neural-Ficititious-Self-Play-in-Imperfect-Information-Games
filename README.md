@@ -1,6 +1,9 @@
 # Neuronal ficticous self-play
 >  NFSP angewendetn auf Leduc-poker von David Joos
 
+# Bachelor Thesis
+The whole Thesis is included in this project unter `/Hauptdatei.pdf` - it's written in german.
+
 ## Environment
 
 It simulates a leduc poker environment. The main class is `env.py` and loads the classes `deck.py`and
